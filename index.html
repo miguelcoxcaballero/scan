@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Libreta Scanner</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Scanner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#131314">
   
-  <!-- Fonts & Icons -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
@@ -13,23 +13,38 @@
   
   <style>
     :root {
+      /* --- LIGHT THEME --- */
       --md-sys-color-primary: #0b57d0;
       --md-sys-color-on-primary: #ffffff;
       --md-sys-color-primary-container: #d3e3fd;
       --md-sys-color-on-primary-container: #041e49;
-      --md-sys-color-surface: #ffffff;
-      --md-sys-color-surface-container: #f0f4f9;
-      --md-sys-color-surface-container-high: #e9eef6;
-      --md-sys-color-outline: #747775;
-      --md-sys-color-outline-variant: #c4c7c5;
-      --md-sys-color-on-surface: #1f1f1f;
-      --md-sys-color-on-surface-variant: #444746;
-      
-      --radius-lg: 16px;
-      --radius-xl: 28px;
-      --elevation-1: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
-      --elevation-2: 0 2px 6px 2px rgba(0,0,0,0.15), 0 1px 2px rgba(0,0,0,0.3);
-      --sidebar-width: 280px;
+      --surface-1: #ffffff;
+      --surface-2: #f0f4f9;
+      --surface-3: #f8fafd;
+      --outline: #747775;
+      --outline-variant: #c4c7c5;
+      --text-main: #1f1f1f;
+      --text-sub: #444746;
+      --grid-color: #e0e0e0;
+      --shadow-color: rgba(0,0,0,0.08);
+      --ease-spring: cubic-bezier(0.2, 0.0, 0, 1.0);
+    }
+
+    /* --- DARK THEME --- */
+    body.dark-mode {
+      --md-sys-color-primary: #8AB4F8;
+      --md-sys-color-on-primary: #062e6f;
+      --md-sys-color-primary-container: #004A77;
+      --md-sys-color-on-primary-container: #C2E7FF;
+      --surface-1: #1E1F20; 
+      --surface-2: #1E1F20; 
+      --surface-3: #131314; 
+      --outline: #8E918F;
+      --outline-variant: #444746;
+      --text-main: #E8EAED;
+      --text-sub: #9AA0A6;
+      --grid-color: #333;
+      --shadow-color: rgba(0,0,0,0.6);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
@@ -37,249 +52,438 @@
     body {
       height: 100vh;
       display: flex;
-      background-color: var(--md-sys-color-surface);
-      color: var(--md-sys-color-on-surface);
+      background-color: var(--surface-3);
+      color: var(--text-main);
       font-family: 'Roboto', sans-serif;
       overflow: hidden;
+      transition: background-color 0.3s ease;
     }
 
-    /* --- SIDEBAR --- */
-    #sidebar {
-      width: var(--sidebar-width);
-      background-color: var(--md-sys-color-surface-container);
-      display: flex;
-      flex-direction: column;
-      padding: 16px;
-      gap: 24px;
-      flex-shrink: 0;
-      border-right: 1px solid var(--md-sys-color-surface-container-high);
+    /* --- COMMON CLASSES --- */
+    .hidden { display: none !important; }
+    .fade-out { opacity: 0; pointer-events: none; }
+    
+    /* --- LOADING --- */
+    #appLoading {
+      position: fixed; inset: 0; background: var(--surface-3); z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: opacity 0.4s;
     }
-
-    .logo-area { display: flex; align-items: center; gap: 12px; padding-left: 12px; margin-bottom: 8px; }
-    .logo-icon { font-size: 28px; color: var(--md-sys-color-primary); }
-    .app-name { font-family: 'Google Sans', sans-serif; font-size: 22px; color: var(--md-sys-color-on-surface); }
-
-    .fab-container { position: relative; }
-    .fab-btn {
-      display: flex; align-items: center; gap: 12px;
-      background-color: var(--md-sys-color-surface);
-      color: var(--md-sys-color-on-surface);
-      height: 56px; border-radius: var(--radius-lg);
-      padding: 0 24px 0 20px; box-shadow: var(--elevation-1);
-      cursor: pointer; transition: all 0.2s ease;
-      font-family: 'Google Sans', sans-serif; font-weight: 500; font-size: 14px;
-      user-select: none;
+    .spinner {
+      width: 40px; height: 40px; border: 4px solid var(--outline);
+      border-top-color: var(--md-sys-color-primary); border-radius: 50%;
+      animation: spin 1s linear infinite; margin-bottom: 16px;
     }
-    .fab-btn:hover { box-shadow: var(--elevation-2); background-color: #f8faff; }
-    .fab-btn span { font-size: 24px; color: var(--md-sys-color-primary); }
-    #fileInput { position: absolute; inset: 0; opacity: 0; cursor: pointer; pointer-events: auto; width: 100%; height: 100%; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
 
-    .section-title {
-      font-size: 12px; font-weight: 500; color: var(--md-sys-color-on-surface-variant);
-      padding: 0 12px; margin-bottom: 8px;
+    /* --- LANDING PAGE --- */
+    #landingPage {
+      position: fixed; inset: 0; z-index: 500;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: var(--surface-3);
+      transition: opacity 0.5s var(--ease-spring), transform 0.5s var(--ease-spring);
     }
     
-    #pageList {
-      flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;
-    }
-    #pageList::-webkit-scrollbar { width: 4px; }
-    #pageList::-webkit-scrollbar-thumb { background: var(--md-sys-color-outline-variant); border-radius: 4px; }
-
-    .page-item {
-      display: flex; align-items: center; gap: 12px; padding: 8px 12px;
-      border-radius: var(--radius-xl); cursor: pointer; transition: background 0.2s;
-      border: 2px solid transparent;
-    }
-    .page-item:hover { background-color: rgba(0,0,0,0.04); }
-    .page-item.active {
-      background-color: var(--md-sys-color-primary-container);
-      color: var(--md-sys-color-on-primary-container);
-    }
-    .page-item.dragging { opacity: 0.5; border-color: var(--md-sys-color-primary); }
-    
-    .page-item img {
-      width: 40px; height: 56px; object-fit: cover; border-radius: 4px;
-      background: #fff; border: 1px solid var(--md-sys-color-outline-variant);
-      pointer-events: none;
-    }
-    .page-info { display: flex; flex-direction: column; overflow: hidden; pointer-events: none; }
-    .page-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .page-status { font-size: 11px; opacity: 0.7; }
-    .drag-handle { color: var(--md-sys-color-outline); cursor: grab; margin-left: auto; }
-
-    .bottom-controls {
-      display: flex; flex-direction: column; gap: 12px;
-      border-top: 1px solid var(--md-sys-color-outline-variant); padding-top: 16px;
+    .hero-content {
+      text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 24px;
+      animation: heroEnter 0.8s var(--ease-spring);
     }
     
-    .control-row {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 0 12px; font-size: 12px; color: var(--md-sys-color-on-surface-variant);
+    @keyframes heroEnter {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-icon {
+      font-size: 64px; color: var(--md-sys-color-primary);
+      margin-bottom: 8px;
+    }
+    .hero-title {
+      font-family: 'Google Sans', sans-serif; font-size: 44px; font-weight: 400;
+      color: var(--text-main); margin: 0;
+    }
+    .hero-sub {
+      font-size: 16px; color: var(--text-sub); margin-top: -16px; margin-bottom: 16px;
+    }
+
+    .btn-hero {
+      height: 56px; padding: 0 32px; border-radius: 28px;
+      background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
+      border: none; font-family: 'Google Sans', sans-serif; font-size: 16px; font-weight: 500;
+      cursor: pointer; display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-hero:hover { transform: scale(1.02); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+    .btn-hero:active { transform: scale(0.98); }
+
+    /* --- NAMING MODAL --- */
+    #modalOverlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 600;
+      display: none; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px); opacity: 0; transition: opacity 0.3s;
+    }
+    #modalOverlay.open { display: flex; opacity: 1; }
+    
+    .modal-card {
+      background: var(--surface-1); width: 400px; padding: 24px; border-radius: 28px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      transform: scale(0.9); opacity: 0; transition: 0.3s var(--ease-spring);
+      display: flex; flex-direction: column; gap: 24px;
+    }
+    #modalOverlay.open .modal-card { transform: scale(1); opacity: 1; }
+
+    .modal-title { font-family: 'Google Sans'; font-size: 24px; color: var(--text-main); }
+    
+    .input-group { position: relative; }
+    .mat-input {
+      width: 100%; height: 56px; border: 1px solid var(--outline-variant);
+      border-radius: 4px; background: transparent; padding: 0 16px;
+      color: var(--text-main); font-size: 16px; transition: 0.2s;
+    }
+    .mat-input:focus { border-color: var(--md-sys-color-primary); border-width: 2px; padding: 0 15px; }
+    .input-label {
+      position: absolute; left: 12px; top: -10px; background: var(--surface-1);
+      padding: 0 4px; font-size: 12px; color: var(--md-sys-color-primary);
     }
     
-    /* Toggle Switch */
-    .toggle-switch {
-      position: relative; display: inline-block; width: 36px; height: 20px;
+    .modal-actions { display: flex; justify-content: flex-end; gap: 12px; }
+    .btn-text {
+      height: 40px; padding: 0 12px; border: none; background: transparent;
+      color: var(--md-sys-color-primary); font-family: 'Google Sans'; font-weight: 500;
+      cursor: pointer; border-radius: 20px; transition: 0.2s;
     }
-    .toggle-switch input { opacity: 0; width: 0; height: 0; }
-    .slider {
-      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-      background-color: var(--md-sys-color-outline-variant);
-      transition: .3s; border-radius: 20px;
+    .btn-text:hover { background: var(--md-sys-color-primary-container); }
+    .btn-fill {
+      height: 40px; padding: 0 24px; border: none; border-radius: 20px;
+      background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
+      font-family: 'Google Sans'; font-weight: 500; cursor: pointer; transition: 0.2s;
     }
-    .slider:before {
-      position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px;
-      background-color: white; transition: .3s; border-radius: 50%;
-    }
-    input:checked + .slider { background-color: var(--md-sys-color-primary); }
-    input:checked + .slider:before { transform: translateX(16px); }
+    .btn-fill:hover { box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
 
-    input[type="range"] { width: 100px; accent-color: var(--md-sys-color-primary); }
 
-    .btn-primary {
-      background-color: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
-      height: 40px; border: none; border-radius: var(--radius-xl);
-      font-family: 'Google Sans', sans-serif; font-weight: 500; font-size: 14px;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      cursor: pointer; transition: box-shadow 0.2s;
+    /* --- MAIN APP LAYOUT (Initially Hidden) --- */
+    #appContainer {
+      flex: 1; display: flex; padding: 12px; gap: 16px; height: 100vh; width: 100vw;
+      opacity: 0; transform: scale(0.98);
+      transition: opacity 0.6s 0.2s, transform 0.6s 0.2s var(--ease-spring);
     }
-    .btn-primary:hover { box-shadow: var(--elevation-1); background-color: #0b4db3; }
-    .btn-primary:disabled { background-color: var(--md-sys-color-outline-variant); cursor: default; box-shadow: none; }
+    #appContainer.active { opacity: 1; transform: scale(1); }
 
-    /* --- MAIN AREA --- */
-    #main {
+    /* --- LEFT PANEL (PREVIEW) --- */
+    #mainPanel {
       flex: 1; display: flex; flex-direction: column;
-      background-color: var(--md-sys-color-surface); position: relative;
+      background-color: var(--surface-3);
+      border-radius: 16px;
+      overflow: hidden; position: relative;
     }
 
     #toolbar {
-      height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
+      height: 64px; display: flex; align-items: center; justify-content: space-between; 
+      padding: 0 8px; margin-bottom: 8px;
     }
-    .doc-title { font-family: 'Google Sans', sans-serif; font-size: 18px; }
-    .toolbar-actions { display: flex; gap: 8px; }
-    
-    .icon-btn {
-      height: 40px; padding: 0 16px; border-radius: 20px; border: 1px solid var(--md-sys-color-outline-variant);
-      background: transparent; color: var(--md-sys-color-on-surface-variant);
-      display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500;
-      cursor: pointer; transition: all 0.2s;
+
+    .doc-title {
+      background: transparent; border: none; color: var(--text-main);
+      font-family: 'Google Sans', sans-serif; font-size: 18px; padding: 8px 12px;
+      border-radius: 8px; width: 300px; transition: 0.2s;
     }
-    .icon-btn:hover { background-color: rgba(0,0,0,0.04); }
-    .icon-btn.active { background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); border-color: transparent; }
+    .doc-title:hover { background: var(--surface-1); }
+    .doc-title:focus { background: var(--surface-1); border: 1px solid var(--md-sys-color-primary); }
+
+    .actions { display: flex; gap: 8px; align-items: center; }
     
-    #canvasContainer {
-      flex: 1; background-color: var(--md-sys-color-surface-container-high);
+    .btn-icon {
+      width: 40px; height: 40px; border-radius: 50%; border: none;
+      background: transparent; color: var(--text-sub); cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      overflow: auto; position: relative;
+      transition: 0.2s;
+    }
+    .btn-icon:hover { background: var(--surface-1); color: var(--text-main); }
+
+    .btn-chip {
+      height: 36px; padding: 0 16px; border-radius: 18px; 
+      border: 1px solid var(--outline); background: transparent; color: var(--text-main);
+      display: flex; align-items: center; gap: 8px; font-family: 'Google Sans', sans-serif; font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: 0.2s;
+    }
+    .btn-chip:hover { background: var(--surface-1); }
+    .btn-chip.active { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); border-color: transparent; }
+    .btn-chip:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* --- PREVIEW CONTAINER --- */
+    #viewport {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      background-image: radial-gradient(var(--grid-color) 1px, transparent 1px);
+      background-size: 24px 24px;
+      border-radius: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #paper {
+      background: white;
+      box-shadow: 0 4px 20px var(--shadow-color);
+      position: relative;
+      display: none;
+    }
+
+    #previewImg {
+      display: block; width: 100%; height: 100%; object-fit: contain;
+      pointer-events: none;
     }
     
-    #canvasWrap {
-      background: white; box-shadow: var(--elevation-2); border-radius: 2px;
-      transition: width 0.3s ease, height 0.3s ease; position: relative;
+    .layer-canvas {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      pointer-events: none;
     }
-    canvas { display: block; }
+    #cropLayer { cursor: crosshair; pointer-events: auto; display: none; }
+    
+    #stencilLayer { display: block; z-index: 10; } 
 
     #emptyState {
-      position: absolute; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; color: var(--md-sys-color-on-surface-variant);
-      gap: 16px; pointer-events: none;
+      position: absolute; display: flex; flex-direction: column; align-items: center; gap: 16px;
+      color: var(--text-sub); pointer-events: none;
     }
-    #emptyState .icon { font-size: 64px; color: var(--md-sys-color-outline-variant); }
+    #emptyState span { font-size: 64px; color: var(--outline); }
+
+    /* --- MAGNIFIER --- */
+    #magnifier {
+      position: fixed; 
+      width: 140px; height: 140px; 
+      border-radius: 50%;
+      border: 3px solid var(--md-sys-color-primary);
+      background: #fff;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 9999;
+      display: none; 
+    }
+    #magCanvas {
+      width: 100%; height: 100%; display: block;
+    }
+
+    /* --- RIGHT PANEL (SIDEBAR) --- */
+    #sidebar {
+      width: 340px; display: flex; flex-direction: column;
+      background: var(--surface-1); border-radius: 16px;
+      padding: 20px 16px; gap: 20px; flex-shrink: 0;
+      box-shadow: 0 4px 12px var(--shadow-color);
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; padding: 0 8px; color: var(--text-main); }
+    .brand-icon { color: var(--md-sys-color-primary); font-size: 28px; }
+    .brand-name { font-family: 'Google Sans', sans-serif; font-size: 22px; }
+
+    .fab-add {
+      position: relative; display: flex; align-items: center; justify-content: center; gap: 12px;
+      height: 56px; border-radius: 16px; background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container); font-family: 'Google Sans', sans-serif; font-weight: 500;
+      cursor: pointer; transition: 0.2s; overflow: hidden;
+    }
+    .fab-add:hover { filter: brightness(1.08); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
     
-    #statusOverlay {
-      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-      background-color: #323232; color: white; padding: 10px 24px;
-      border-radius: var(--radius-xl); font-size: 14px; display: none;
-      align-items: center; gap: 12px; box-shadow: var(--elevation-2); z-index: 100;
+    .list-header { font-size: 11px; font-weight: 600; color: var(--text-sub); padding: 0 8px; letter-spacing: 1px; }
+    
+    #pageList { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
+    #pageList::-webkit-scrollbar { width: 4px; }
+    #pageList::-webkit-scrollbar-thumb { background: var(--outline); border-radius: 4px; }
+
+    .page-card {
+      display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 12px;
+      border: 1px solid transparent; cursor: pointer; transition: 0.2s; background: transparent;
     }
-    .spinner {
-      width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3);
-      border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite;
+    .page-card:hover { background: rgba(255,255,255,0.05); }
+    .page-card.active { 
+      background: var(--md-sys-color-primary-container); 
+      color: var(--md-sys-color-on-primary-container);
     }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
+    .page-card.active .page-meta { color: var(--md-sys-color-on-primary-container); opacity: 0.8; }
+    .page-card.active .btn-del { color: var(--md-sys-color-on-primary-container); opacity: 0.7; }
+
+    .thumb {
+      width: 48px; height: 64px; border-radius: 6px; background: #eee; object-fit: cover;
+      border: 1px solid var(--outline); flex-shrink: 0;
+    }
+    .info { flex: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
+    .filename { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .page-meta { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
+
+    .btn-del {
+      width: 32px; height: 32px; border-radius: 50%; border: none; background: transparent;
+      color: var(--text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .btn-del:hover { background: rgba(255,0,0,0.1); color: var(--md-sys-color-error); }
+
+    .bottom-controls {
+      padding-top: 16px;
+      border-top: 1px solid var(--outline);
+    }
+    .btn-main {
+      width: 100%; 
+      height: 48px; border-radius: 24px; border: none;
+      background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
+      font-family: 'Google Sans', sans-serif; font-weight: 500; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s;
+    }
+    .btn-main:hover { filter: brightness(1.1); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+    .btn-main:disabled { background: var(--surface-2); color: var(--outline); cursor: default; box-shadow: none; filter: none; }
+
+    #toast {
+      position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--text-main); color: var(--surface-3); padding: 12px 24px; border-radius: 32px;
+      font-size: 14px; opacity: 0; transition: 0.3s cubic-bezier(0.2,0,0,1); pointer-events: none; z-index: 100;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   </style>
 </head>
 <body>
 
-  <div id="sidebar">
-    <div class="logo-area">
-      <span class="material-symbols-rounded logo-icon">document_scanner</span>
-      <span class="app-name">Libreta</span>
-    </div>
+  <!-- LOADING SPINNER -->
+  <div id="appLoading">
+    <div class="spinner"></div>
+    <span style="font-family:'Google Sans'; font-size:18px; color:var(--text-main);">Loading Core...</span>
+  </div>
 
-    <div class="fab-container">
-      <div class="fab-btn">
+  <!-- LANDING PAGE -->
+  <div id="landingPage">
+    <div class="hero-content">
+      <span class="material-symbols-rounded hero-icon">document_scanner</span>
+      <h1 class="hero-title">Scanner</h1>
+      <p class="hero-sub">Digitize, Crop & Export</p>
+      
+      <button class="btn-hero" id="btnLandingStart">
         <span class="material-symbols-rounded">add</span>
         New Scan
-      </div>
-      <input id="fileInput" type="file" accept="image/*" multiple>
-    </div>
-
-    <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
-      <div class="section-title">PAGES (Drag to Reorder)</div>
-      <div id="pageList">
-        <div style="padding:12px; text-align:center; color:var(--md-sys-color-outline); font-size:13px;">
-          No pages yet
-        </div>
-      </div>
-    </div>
-
-    <div class="bottom-controls">
-      <div class="control-row">
-        <span>Show Stencil</span>
-        <label class="toggle-switch">
-          <input type="checkbox" id="stencilToggle" checked>
-          <span class="slider"></span>
-        </label>
-      </div>
-      <div class="control-row">
-        <span>White Threshold</span>
-        <input id="whiteThreshold" type="range" min="50" max="95" value="87">
-      </div>
-      <button id="exportBtn" class="btn-primary" disabled>
-        <span class="material-symbols-rounded">download</span>
-        Download PDF
       </button>
     </div>
   </div>
 
-  <div id="main">
-    <div id="toolbar">
-      <div class="doc-title">Scanned Document</div>
-      <div class="toolbar-actions">
-        <button class="icon-btn" id="resetCropBtn" style="display:none">
-            <span class="material-symbols-rounded">restart_alt</span> Auto-Crop
-        </button>
-        <button class="icon-btn" id="editCropBtn" style="display:none">
-          <span class="material-symbols-rounded">crop</span> Edit Crop
-        </button>
+  <!-- NAMING MODAL -->
+  <div id="modalOverlay">
+    <div class="modal-card">
+      <h2 class="modal-title">New Scan</h2>
+      <div class="input-group">
+        <input type="text" id="scanNameInput" class="mat-input" placeholder="Untitled Scan" autofocus>
+        <span class="input-label">Document Name</span>
       </div>
-    </div>
-
-    <div id="canvasContainer">
-      <div id="emptyState">
-        <span class="material-symbols-rounded icon">image_search</span>
-        <span>Upload an image to start automatic scanning</span>
+      <div class="modal-actions">
+        <button class="btn-text" id="btnModalCancel">Cancel</button>
+        <button class="btn-fill" id="btnModalCreate">Create</button>
       </div>
-      
-      <div id="canvasWrap" style="display:none">
-        <canvas id="cv"></canvas>
-      </div>
-    </div>
-    
-    <div id="statusOverlay">
-      <div class="spinner"></div>
-      <span id="statusText">Processing...</span>
     </div>
   </div>
 
-  <script async src="https://docs.opencv.org/4.x/opencv.js" type="text/javascript"></script>
+  <!-- MAIN APP CONTAINER (Initially Hidden) -->
+  <div id="appContainer" class="hidden">
+    
+    <div id="magnifier">
+      <canvas id="magCanvas"></canvas>
+    </div>
+
+    <div id="mainPanel">
+      <div id="toolbar">
+        <input type="text" class="doc-title" id="docTitle" value="Untitled Document">
+        <div class="actions">
+          <button class="btn-icon" id="themeBtn" title="Theme">
+            <span class="material-symbols-rounded">dark_mode</span>
+          </button>
+          <div style="width:1px; height:20px; background:var(--outline); opacity:0.3;"></div>
+          
+          <button class="btn-chip" id="autoCropBtn" style="display:none">
+            <span class="material-symbols-rounded">auto_fix</span> Auto
+          </button>
+
+          <button class="btn-chip" id="cropBtn" disabled>
+            <span class="material-symbols-rounded">crop</span> Crop
+          </button>
+
+          <button class="btn-chip" id="stencilBtn" disabled>
+            <span class="material-symbols-rounded">grid_4x4</span> Stencil
+          </button>
+        </div>
+      </div>
+
+      <div id="viewport">
+        <div id="emptyState">
+          <span class="material-symbols-rounded">add_photo_alternate</span>
+          <p>Add photos to start</p>
+        </div>
+
+        <div id="paper">
+          <img id="previewImg" alt="Scan">
+          <canvas id="stencilLayer" class="layer-canvas"></canvas>
+          <canvas id="cropLayer" class="layer-canvas"></canvas>
+        </div>
+      </div>
+      
+      <div id="toast">Notification</div>
+    </div>
+
+    <div id="sidebar">
+      <div class="brand">
+        <span class="material-symbols-rounded brand-icon">document_scanner</span>
+        <span class="brand-name">Scanner</span>
+      </div>
+
+      <label class="fab-add">
+        <span class="material-symbols-rounded">add</span> Add Pages
+        <input type="file" id="fileInput" accept="image/*" multiple hidden disabled>
+      </label>
+
+      <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+        <div class="section-header list-header">PAGES</div>
+        <div id="pageList">
+          <div id="msgEmpty" style="text-align:center; padding:20px; color:var(--text-sub); font-size:13px; font-style:italic;">
+            No pages
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-controls">
+        <button id="exportBtn" class="btn-main" disabled>
+          <span class="material-symbols-rounded">picture_as_pdf</span> Export PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script async src="https://docs.opencv.org/4.x/opencv.js" type="text/javascript"></script>
 
   <script>
-    /* --- CONFIGURATION --- */
+    const STATE = {
+      pages: [], 
+      currentIdx: -1,
+      isCropMode: false,
+      isStencilMode: true, // STENCIL ON BY DEFAULT
+      cvReady: false,
+      theme: 'dark' 
+    };
+
     const A4_W = 2480, A4_H = 3508; 
+    const WHITE_THRESHOLD = 87;
+    const PX_PER_CM = 118.09;
+    
+    const STENCIL_CFG = {
+        w: 18 * PX_PER_CM,
+        h: 27 * PX_PER_CM,
+        x: 1.5 * PX_PER_CM,
+        y: 1.43 * PX_PER_CM,
+        borderColor: '#ffde00',
+        bgColor: '#ffffff',
+        gapMM: 0.4 
+    };
+
+    const MARKER_TARGET = {
+        x: 10.375 * PX_PER_CM,
+        y: 27.675 * PX_PER_CM
+    };
+
     const colorKeys = ['red','blue','green','black','white'];
     const calibration = {
       red:{src:null,dst:[255,0,0]}, blue:{src:null,dst:[90,90,180]},
@@ -292,37 +496,644 @@
     };
     const defaultColorWindow = { x1:1105, y1:3200, x2:1370, y2:3370 };
 
-    /* --- STATE --- */
-    let pages = [];
-    let currentIndex = -1;
-    let cvReady = false;
-    let whitePct = 87;
-    let stencilImg = new Image();
-    let stencilReady = false;
-    let showStencil = true;
-    
-    // Editing State
-    let isEditingCrop = false;
-    let dragCornerIdx = -1;
-    let lastRenderScale = 1;
-
-    /* --- DOM --- */
     const $ = id => document.getElementById(id);
-    const canvas = $('cv');
-    const ctx = canvas.getContext('2d');
-
-    /* --- INIT STENCIL --- */
-    // Load normally for preview
-    stencilImg.src = "stencil.png";
-    stencilImg.onload = () => { 
-        console.log("Stencil loaded.");
-        stencilReady = true; 
-        if(currentIndex>=0) renderCanvas(); 
+    const els = {
+      // New Elements
+      landing: $('landingPage'),
+      modal: $('modalOverlay'),
+      app: $('appContainer'),
+      nameInput: $('scanNameInput'),
+      
+      // Existing
+      paper: $('paper'),
+      img: $('previewImg'),
+      canvas: $('cropLayer'),
+      stencil: $('stencilLayer'),
+      viewport: $('viewport'),
+      empty: $('emptyState'),
+      list: $('pageList'),
+      fileIn: $('fileInput'),
+      loading: $('appLoading'),
+      magnifier: $('magnifier'),
+      magCanvas: $('magCanvas')
     };
-    stencilImg.onerror = () => console.warn("stencil.png not found in folder.");
+    const ctx = els.canvas.getContext('2d');
+    const stx = els.stencil.getContext('2d');
+    const magCtx = els.magCanvas.getContext('2d');
 
-    /* --- OPENCV HELPER --- */
-    function orderQuad(pts){
+    // --- INITIALIZATION ---
+    var Module = {
+      onRuntimeInitialized: function() {
+        STATE.cvReady = true;
+        els.loading.style.opacity = '0';
+        setTimeout(() => els.loading.remove(), 400);
+        els.fileIn.disabled = false;
+        
+        const sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setTheme(localStorage.getItem('theme') || (sysDark ? 'dark' : 'light'));
+        
+        new Sortable(els.list, {
+          animation: 150, ghostClass: 'sortable-ghost',
+          onEnd: (evt) => {
+            const item = STATE.pages.splice(evt.oldIndex, 1)[0];
+            STATE.pages.splice(evt.newIndex, 0, item);
+            if(STATE.currentIdx === evt.oldIndex) STATE.currentIdx = evt.newIndex;
+            else if(STATE.currentIdx > evt.oldIndex && STATE.currentIdx <= evt.newIndex) STATE.currentIdx--;
+            else if(STATE.currentIdx < evt.oldIndex && STATE.currentIdx >= evt.newIndex) STATE.currentIdx++;
+            renderList();
+          }
+        });
+
+        new ResizeObserver(() => {
+          if(STATE.currentIdx >= 0) updateViewGeometry();
+        }).observe(els.viewport);
+      }
+    };
+
+    /* --- NAVIGATION / APP FLOW --- */
+    
+    // 1. Landing -> Modal
+    $('btnLandingStart').onclick = () => {
+      els.modal.classList.add('open');
+      els.nameInput.value = '';
+      els.nameInput.focus();
+    };
+
+    // 2. Modal Cancel
+    $('btnModalCancel').onclick = () => {
+      els.modal.classList.remove('open');
+    };
+
+    // 3. Modal Create -> Main App
+    $('btnModalCreate').onclick = enterMainApp;
+    els.nameInput.addEventListener('keypress', (e) => {
+      if(e.key === 'Enter') enterMainApp();
+    });
+
+    function enterMainApp() {
+      const name = els.nameInput.value.trim() || "Untitled Scan";
+      $('docTitle').value = name;
+      
+      // Close Modal
+      els.modal.classList.remove('open');
+      
+      // Animate Landing Out
+      els.landing.style.opacity = '0';
+      els.landing.style.transform = 'scale(1.1)';
+      els.landing.style.pointerEvents = 'none';
+
+      // Animate App In
+      els.app.classList.remove('hidden');
+      // Small delay to allow display:block to apply before opacity transition
+      setTimeout(() => {
+        els.app.classList.add('active');
+      }, 50);
+    }
+
+
+    /* --- EXISTING LOGIC (Unchanged functionality) --- */
+
+    async function handleFiles(files) {
+      if(!STATE.cvReady || !files.length) return;
+      els.empty.style.display = 'none';
+      showToast('Processing...');
+
+      for(const file of files) {
+        const img = await loadImage(file);
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        c.getContext('2d').drawImage(img,0,0);
+        
+        const pageQuad = detectCorners(c);
+        
+        const warpResult = smartWarp(c, pageQuad);
+        let alignedCanvas = warpResult.canvas;
+        const usedYellow = warpResult.usedYellow;
+
+        const scanResult = scanForColors(alignedCanvas);
+        let markerCenter = null;
+
+        if(!usedYellow && scanResult.found && scanResult.blackPt) {
+             const rawCenter = findBlackBlobCentroid(alignedCanvas, scanResult.blackPt);
+             alignedCanvas = alignToMarker(alignedCanvas, rawCenter);
+             markerCenter = { x: MARKER_TARGET.x, y: MARKER_TARGET.y };
+        } else if (usedYellow) {
+             markerCenter = { x: MARKER_TARGET.x, y: MARKER_TARGET.y };
+        }
+
+        const T = buildColorTransform();
+        const processed = (T) ? applyRecolor(alignedCanvas, T) : alignedCanvas;
+        
+        const displayUrl = await canvasToUrl(processed);
+        const thumbUrl = await canvasToUrl(resizeCanvas(processed, 60));
+
+        STATE.pages.push({
+          id: Date.now() + Math.random(),
+          src: c,
+          processed: processed,
+          displayUrl: displayUrl,
+          thumbUrl: thumbUrl,
+          quad: pageQuad,
+          name: file.name,
+          marker: markerCenter,
+          yellowUsed: usedYellow
+        });
+      }
+
+      renderList();
+      selectPage(STATE.pages.length - 1);
+      $('exportBtn').disabled = false;
+    }
+
+    function smartWarp(srcCanvas, pageQuad) {
+        const yellowQuad = detectYellowRect(srcCanvas);
+        
+        if (yellowQuad) {
+            console.log("Yellow Box Detected! Warping to Stencil coords.");
+            const dstStencil = [
+                STENCIL_CFG.x, STENCIL_CFG.y, 
+                STENCIL_CFG.x + STENCIL_CFG.w, STENCIL_CFG.y,
+                STENCIL_CFG.x + STENCIL_CFG.w, STENCIL_CFG.y + STENCIL_CFG.h,
+                STENCIL_CFG.x, STENCIL_CFG.y + STENCIL_CFG.h
+            ];
+            
+            return {
+                canvas: warpGeneral(srcCanvas, yellowQuad, dstStencil),
+                usedYellow: true
+            };
+        } else {
+            console.log("Yellow Box not found. Falling back to Page corners.");
+            const dstA4 = [0,0, A4_W,0, A4_W,A4_H, 0,A4_H];
+            return {
+                canvas: warpGeneral(srcCanvas, pageQuad, dstA4),
+                usedYellow: false
+            };
+        }
+    }
+
+    function detectYellowRect(srcCanvas) {
+        let src = cv.imread(srcCanvas);
+        let srcRGB = new cv.Mat();
+        cv.cvtColor(src, srcRGB, cv.COLOR_RGBA2RGB); 
+        let hsv = new cv.Mat();
+        cv.cvtColor(srcRGB, hsv, cv.COLOR_RGB2HSV);
+        
+        let mask = new cv.Mat();
+        let low = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [15, 60, 60, 0]);
+        let high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [40, 255, 255, 255]);
+        
+        cv.inRange(hsv, low, high, mask);
+        
+        let M = cv.Mat.ones(5, 5, cv.CV_8U);
+        cv.morphologyEx(mask, mask, cv.MORPH_OPEN, M);
+        
+        let contours = new cv.MatVector();
+        cv.findContours(mask, contours, new cv.Mat(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+        
+        let best = null;
+        let maxArea = 0;
+        const minArea = (src.cols * src.rows) * 0.05;
+
+        for(let i=0; i<contours.size(); i++) {
+            let cnt = contours.get(i);
+            let area = cv.contourArea(cnt);
+            if(area > maxArea && area > minArea) {
+                let peri = cv.arcLength(cnt, true);
+                let approx = new cv.Mat();
+                cv.approxPolyDP(cnt, approx, 0.04 * peri, true);
+                
+                if(approx.rows === 4 && cv.isContourConvex(approx)) {
+                    maxArea = area;
+                    best = [];
+                    for(let j=0; j<4; j++) {
+                        best.push({x: approx.intPtr(j)[0], y: approx.intPtr(j)[1]});
+                    }
+                }
+                approx.delete();
+            }
+        }
+        
+        src.delete(); srcRGB.delete(); hsv.delete(); mask.delete(); low.delete(); high.delete(); M.delete(); contours.delete();
+        return best ? orderQuad(best) : null;
+    }
+
+    function warpGeneral(srcCanvas, srcQuad, dstCoordsArray) {
+        let src = cv.imread(srcCanvas);
+        let dst = new cv.Mat();
+        
+        let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, srcQuad.flatMap(q=>[q.x,q.y]));
+        let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, dstCoordsArray);
+        
+        let M = cv.getPerspectiveTransform(srcTri, dstTri);
+        cv.warpPerspective(src, dst, M, new cv.Size(A4_W, A4_H), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(255,255,255,255));
+        
+        let out = document.createElement('canvas');
+        out.width = A4_W; out.height = A4_H;
+        cv.imshow(out, dst);
+        
+        src.delete(); dst.delete(); srcTri.delete(); dstTri.delete(); M.delete();
+        return out;
+    }
+
+    function selectPage(idx) {
+      if(idx < 0 || idx >= STATE.pages.length) return;
+      if(STATE.isCropMode) toggleCropMode();
+      
+      STATE.currentIdx = idx;
+      renderList();
+      
+      const p = STATE.pages[idx];
+      els.paper.style.display = 'block';
+      els.img.src = p.displayUrl;
+      els.img.style.display = 'block';
+      
+      els.canvas.style.display = 'none';
+      $('cropBtn').disabled = false;
+      $('stencilBtn').disabled = false;
+
+      if(STATE.isStencilMode) $('stencilBtn').classList.add('active');
+      else $('stencilBtn').classList.remove('active');
+      
+      drawOverlay(stx, p.processed.width, p.processed.height);
+      updateViewGeometry();
+    }
+
+    function updateViewGeometry() {
+      if(STATE.currentIdx < 0) return;
+      const p = STATE.pages[STATE.currentIdx];
+      const sourceW = STATE.isCropMode ? p.src.width : p.processed.width;
+      const sourceH = STATE.isCropMode ? p.src.height : p.processed.height;
+      const aspect = sourceW / sourceH;
+
+      const pad = 40;
+      const availW = els.viewport.clientWidth - pad;
+      const availH = els.viewport.clientHeight - pad;
+
+      if(availW <= 0) return;
+
+      let finalW = availW;
+      let finalH = availW / aspect;
+
+      if(finalH > availH) {
+        finalH = availH;
+        finalW = availH * aspect;
+      }
+
+      els.paper.style.width = `${finalW}px`;
+      els.paper.style.height = `${finalH}px`;
+
+      if(STATE.isCropMode) drawCropCanvas();
+      if(!STATE.isCropMode) drawOverlay(stx, p.processed.width, p.processed.height);
+    }
+
+    function toggleCropMode() {
+      if(STATE.currentIdx < 0) return;
+      STATE.isCropMode = !STATE.isCropMode;
+      const btn = $('cropBtn');
+      const autoBtn = $('autoCropBtn');
+      const stencilBtn = $('stencilBtn');
+      const p = STATE.pages[STATE.currentIdx];
+
+      if(STATE.isCropMode) {
+        btn.innerHTML = '<span class="material-symbols-rounded">check</span> Done';
+        btn.classList.add('active');
+        autoBtn.style.display = 'flex';
+        stencilBtn.style.display = 'none'; 
+        
+        els.img.style.display = 'none';
+        els.stencil.style.display = 'none'; 
+        
+        els.canvas.style.display = 'block';
+        els.canvas.width = p.src.width;
+        els.canvas.height = p.src.height;
+        drawCropCanvas();
+      } else {
+        btn.innerHTML = '<span class="material-symbols-rounded">crop</span> Crop';
+        btn.classList.remove('active');
+        
+        autoBtn.style.display = 'none';
+        stencilBtn.style.display = 'flex';
+        els.stencil.style.display = 'block';
+        
+        showToast('Applying...');
+        setTimeout(async () => {
+          const dstA4 = [0,0, A4_W,0, A4_W,A4_H, 0,A4_H];
+          let intermediateCanvas = warpGeneral(p.src, p.quad, dstA4);
+          
+          const yellowQuad = detectYellowRect(intermediateCanvas);
+          let alignedCanvas = intermediateCanvas;
+          let usedYellow = false;
+
+          if (yellowQuad) {
+             console.log("Found Yellow Box in manual crop. Re-scaling.");
+             const dstStencil = [
+                STENCIL_CFG.x, STENCIL_CFG.y, 
+                STENCIL_CFG.x + STENCIL_CFG.w, STENCIL_CFG.y,
+                STENCIL_CFG.x + STENCIL_CFG.w, STENCIL_CFG.y + STENCIL_CFG.h,
+                STENCIL_CFG.x, STENCIL_CFG.y + STENCIL_CFG.h
+             ];
+             alignedCanvas = warpGeneral(intermediateCanvas, yellowQuad, dstStencil);
+             usedYellow = true;
+          }
+
+          const scanResult = scanForColors(alignedCanvas);
+          if(!usedYellow && scanResult.found && scanResult.blackPt) {
+               const rawCenter = findBlackBlobCentroid(alignedCanvas, scanResult.blackPt);
+               alignedCanvas = alignToMarker(alignedCanvas, rawCenter);
+               p.marker = { x: MARKER_TARGET.x, y: MARKER_TARGET.y };
+          } else {
+               p.marker = usedYellow ? { x: MARKER_TARGET.x, y: MARKER_TARGET.y } : null;
+          }
+
+          const T = buildColorTransform();
+          const processed = (T) ? applyRecolor(alignedCanvas, T) : alignedCanvas;
+          
+          p.processed = processed;
+          p.displayUrl = await canvasToUrl(processed);
+          p.thumbUrl = await canvasToUrl(resizeCanvas(processed, 60));
+          p.yellowUsed = usedYellow; 
+
+          selectPage(STATE.currentIdx);
+          renderList();
+        }, 10);
+      }
+      updateViewGeometry();
+    }
+
+    function toggleStencilMode() {
+        if(STATE.currentIdx < 0 || STATE.isCropMode) return;
+        STATE.isStencilMode = !STATE.isStencilMode;
+        const btn = $('stencilBtn');
+        const p = STATE.pages[STATE.currentIdx];
+        
+        if(STATE.isStencilMode) btn.classList.add('active');
+        else btn.classList.remove('active');
+        
+        drawOverlay(stx, p.processed.width, p.processed.height);
+    }
+
+    function alignToMarker(srcCanvas, currentXY) {
+        const targetX = MARKER_TARGET.x;
+        const targetY = MARKER_TARGET.y;
+
+        const diffX = targetX - currentXY.x;
+        const diffY = targetY - currentXY.y;
+
+        const out = document.createElement('canvas');
+        out.width = A4_W;
+        out.height = A4_H;
+        const ctx = out.getContext('2d');
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, A4_W, A4_H);
+        ctx.drawImage(srcCanvas, diffX, diffY);
+
+        return out;
+    }
+
+    function drawOverlay(targetCtx, w, h, isExport = false) {
+        if (isExport) {
+            const overlay = document.createElement('canvas');
+            overlay.width = w;
+            overlay.height = h;
+            const oCtx = overlay.getContext('2d');
+            _renderOverlayContent(oCtx, w, h);
+            targetCtx.drawImage(overlay, 0, 0);
+            return;
+        }
+        if(targetCtx.canvas === els.stencil) {
+            els.stencil.width = w;
+            els.stencil.height = h;
+        }
+        targetCtx.clearRect(0, 0, w, h);
+        _renderOverlayContent(targetCtx, w, h);
+    }
+
+    function _renderOverlayContent(ctx, w, h) {
+        const scaleX = w / A4_W;
+        const scaleY = h / A4_H;
+
+        if (STATE.isStencilMode) {
+            const sX = STENCIL_CFG.x * scaleX;
+            const sY = STENCIL_CFG.y * scaleY;
+            const sW = STENCIL_CFG.w * scaleX;
+            const sH = STENCIL_CFG.h * scaleY;
+            
+            const lineWidth = 8 * scaleX; 
+            const gapPx = (STENCIL_CFG.gapMM / 10) * PX_PER_CM * scaleX;
+            const holeOffset = (lineWidth / 2) + gapPx;
+
+            ctx.fillStyle = STENCIL_CFG.bgColor;
+            ctx.fillRect(0, 0, w, h);
+            
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillRect(sX + holeOffset, sY + holeOffset, sW - (holeOffset * 2), sH - (holeOffset * 2));
+            
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.strokeStyle = STENCIL_CFG.borderColor;
+            ctx.lineWidth = lineWidth; 
+            ctx.strokeRect(sX, sY, sW, sH);
+        }
+    }
+
+    function scanForColors(warpedCanvas) {
+      const ctx = warpedCanvas.getContext('2d');
+      const {x1,y1,x2,y2} = defaultColorWindow;
+      const w=x2-x1, h=y2-y1;
+      if(w <= 0 || h <= 0) return { found: false, blackPt: null };
+      
+      const data = ctx.getImageData(x1,y1,w,h).data;
+      const nearest = {};
+      colorKeys.forEach(k => nearest[k]={dist:Infinity, rgb:null, xy:null});
+      
+      for(let i=0; i<data.length; i+=12) { 
+        const r=data[i], g=data[i+1], b=data[i+2];
+        const lx = (i/4) % w;
+        const ly = Math.floor((i/4) / w);
+        const gx = x1 + lx;
+        const gy = y1 + ly;
+
+        colorKeys.forEach(k => {
+          const ideal = windowAnchors[k];
+          const dist = (r-ideal[0])**2 + (g-ideal[1])**2 + (b-ideal[2])**2;
+          if(dist < nearest[k].dist) {
+             nearest[k] = {dist, rgb:[r,g,b], xy: {x: gx, y: gy}};
+          }
+        });
+      }
+      
+      let cnt=0;
+      colorKeys.forEach(k => { 
+          if(nearest[k].rgb){ 
+             calibration[k].src=nearest[k].rgb; 
+             cnt++; 
+          }
+      });
+      
+      return { 
+          found: cnt===5, 
+          blackPt: nearest['black'] ? nearest['black'].xy : null 
+      };
+    }
+
+    function findBlackBlobCentroid(canvas, seed) {
+        const ctx = canvas.getContext('2d');
+        const {x1,y1,x2,y2} = defaultColorWindow;
+        const w = x2 - x1;
+        const h = y2 - y1;
+        const imageData = ctx.getImageData(x1, y1, w, h);
+        const data = imageData.data;
+        const startX = Math.round(seed.x - x1);
+        const startY = Math.round(seed.y - y1);
+
+        if(startX < 0 || startX >= w || startY < 0 || startY >= h) return seed;
+
+        const stack = [[startX, startY]];
+        const visited = new Uint8Array(w * h); 
+        const IS_BLACK = (idx) => (data[idx] + data[idx+1] + data[idx+2]) < 150;
+        const startIdx = (startY * w + startX);
+        visited[startIdx] = 1;
+
+        let sumX = 0, sumY = 0, count = 0;
+
+        while(stack.length > 0) {
+            const [cx, cy] = stack.pop();
+            sumX += cx; sumY += cy; count++;
+
+            const neighbors = [[cx+1, cy], [cx-1, cy], [cx, cy+1], [cx, cy-1]];
+            for(let i=0; i<neighbors.length; i++) {
+                const nx = neighbors[i][0];
+                const ny = neighbors[i][1];
+                if(nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                    const nIdx = (ny * w + nx);
+                    if(visited[nIdx] === 0) {
+                        if(IS_BLACK(nIdx * 4)) {
+                            visited[nIdx] = 1;
+                            stack.push([nx, ny]);
+                        }
+                    }
+                }
+            }
+        }
+        if(count === 0) return seed;
+        return { x: (sumX / count) + x1, y: (sumY / count) + y1 };
+    }
+
+    function autoCrop() {
+      if(STATE.currentIdx < 0) return;
+      showToast('Detecting...');
+      setTimeout(async () => {
+        const p = STATE.pages[STATE.currentIdx];
+        const newQuad = detectCorners(p.src);
+        if(newQuad) {
+          p.quad = newQuad;
+          drawCropCanvas();
+        }
+      }, 10);
+    }
+
+    function drawCropCanvas() {
+      const p = STATE.pages[STATE.currentIdx];
+      const w = els.canvas.width;
+      const h = els.canvas.height;
+      ctx.clearRect(0,0,w,h);
+      ctx.drawImage(p.src, 0, 0);
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath();
+      ctx.rect(0, 0, w, h);
+      p.quad.forEach((pt,i) => {
+          if(i===0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.closePath();
+      ctx.fill('evenodd');
+      
+      const styles = getComputedStyle(document.body);
+      const colPrim = styles.getPropertyValue('--md-sys-color-primary').trim();
+      const colCont = styles.getPropertyValue('--md-sys-color-primary-container').trim();
+
+      ctx.strokeStyle = colPrim;
+      ctx.lineWidth = Math.max(2, w/300);
+      ctx.beginPath();
+      p.quad.forEach((pt,i) => i===0 ? ctx.moveTo(pt.x,pt.y) : ctx.lineTo(pt.x,pt.y));
+      ctx.closePath();
+      ctx.stroke();
+
+      const rad = Math.max(5, w/100);
+      p.quad.forEach(pt => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, rad*2, 0, Math.PI*2);
+        ctx.fillStyle = colCont;
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, rad/2, 0, Math.PI*2);
+        ctx.fillStyle = colPrim;
+        ctx.fill();
+      });
+    }
+
+    function updateMagnifier(x, y) {
+      const p = STATE.pages[STATE.currentIdx];
+      const zoom = 2.5;
+      const size = 140;
+      els.magCanvas.width = size;
+      els.magCanvas.height = size;
+      magCtx.clearRect(0,0,size,size);
+      magCtx.drawImage(p.src, x - (size/2)/zoom, y - (size/2)/zoom, size/zoom, size/zoom, 0, 0, size, size);
+      const styles = getComputedStyle(document.body);
+      const colPrim = styles.getPropertyValue('--md-sys-color-primary').trim();
+      magCtx.beginPath();
+      magCtx.moveTo(size/2, 0); magCtx.lineTo(size/2, size);
+      magCtx.moveTo(0, size/2); magCtx.lineTo(size, size/2);
+      magCtx.strokeStyle = colPrim;
+      magCtx.lineWidth = 2;
+      magCtx.stroke();
+      const rect = els.canvas.getBoundingClientRect();
+      const scaleX = rect.width / els.canvas.width;
+      const scaleY = rect.height / els.canvas.height;
+      const screenX = rect.left + (x * scaleX);
+      const screenY = rect.top + (y * scaleY);
+      const yOffset = (screenY < 180) ? 80 : -80;
+      els.magnifier.style.display = 'block';
+      els.magnifier.style.left = `${screenX}px`;
+      els.magnifier.style.top = `${screenY + yOffset}px`;
+      els.magnifier.style.transform = 'translate(-50%, -50%)';
+    }
+
+    function detectCorners(srcCanvas) {
+      let src = cv.imread(srcCanvas);
+      let ds = new cv.Mat();
+      const scale = Math.min(1, 800/Math.max(src.cols, src.rows));
+      cv.resize(src, ds, new cv.Size(), scale, scale);
+      let gray = new cv.Mat();
+      cv.cvtColor(ds, gray, cv.COLOR_RGBA2GRAY);
+      cv.GaussianBlur(gray, gray, new cv.Size(5,5), 0);
+      cv.Canny(gray, gray, 50, 150);
+      let contours = new cv.MatVector();
+      cv.findContours(gray, contours, new cv.Mat(), cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+      let best = null, maxA = 0;
+      for(let i=0; i<contours.size(); i++) {
+        let cnt = contours.get(i);
+        let peri = cv.arcLength(cnt, true);
+        let approx = new cv.Mat();
+        cv.approxPolyDP(cnt, approx, 0.02*peri, true);
+        if(approx.rows === 4 && cv.isContourConvex(approx)) {
+          let area = cv.contourArea(approx);
+          if(area > maxA && area > (ds.cols*ds.rows*0.1)) {
+            maxA = area;
+            best = [];
+            for(let j=0;j<4;j++) best.push({x: approx.intPtr(j)[0]/scale, y: approx.intPtr(j)[1]/scale});
+          }
+        }
+        approx.delete();
+      }
+      src.delete(); ds.delete(); gray.delete(); contours.delete();
+      if(!best) return [{x:0,y:0}, {x:srcCanvas.width,y:0}, {x:srcCanvas.width,y:srcCanvas.height}, {x:0,y:srcCanvas.height}];
+      return orderQuad(best);
+    }
+
+    function orderQuad(pts) {
       const s = pts.map(p => p.x + p.y);
       const d = pts.map(p => p.x - p.y);
       return [
@@ -331,58 +1142,6 @@
       ];
     }
 
-    function detectCorners(imgCanvas) {
-      if(!cvReady) return null;
-      const src = cv.imread(imgCanvas);
-      const scale = Math.min(1, 1200/Math.max(src.cols, src.rows));
-      const scaled = new cv.Mat();
-      cv.resize(src, scaled, new cv.Size(), scale, scale);
-      
-      const gray = new cv.Mat();
-      cv.cvtColor(scaled, gray, cv.COLOR_RGBA2GRAY);
-      cv.GaussianBlur(gray, gray, new cv.Size(5,5), 0);
-      cv.Canny(gray, gray, 50, 150);
-      
-      const contours = new cv.MatVector();
-      cv.findContours(gray, contours, new cv.Mat(), cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-
-      let maxArea = 0, quad = null;
-      for(let i=0; i<contours.size(); i++){
-        const cnt = contours.get(i);
-        const peri = cv.arcLength(cnt, true);
-        const approx = new cv.Mat();
-        cv.approxPolyDP(cnt, approx, 0.02*peri, true);
-        const area = cv.contourArea(approx);
-        if(approx.rows === 4 && area > (scaled.cols*scaled.rows*0.2) && area > maxArea && cv.isContourConvex(approx)){
-          maxArea = area;
-          quad = [];
-          for(let j=0; j<4; j++) quad.push({x: approx.intPtr(j)[0]/scale, y: approx.intPtr(j)[1]/scale});
-        }
-        approx.delete();
-      }
-      src.delete(); scaled.delete(); gray.delete(); contours.delete();
-      return quad ? orderQuad(quad) : [
-        {x:0,y:0}, {x:imgCanvas.width,y:0}, 
-        {x:imgCanvas.width,y:imgCanvas.height}, {x:0,y:imgCanvas.height}
-      ];
-    }
-
-    function warpImage(imgCanvas, quad) {
-      if(!cvReady || !quad) return null;
-      const src = cv.imread(imgCanvas);
-      const dst = new cv.Mat();
-      const srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, quad.flatMap(q=>[q.x,q.y]));
-      const dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [0,0, A4_W,0, A4_W,A4_H, 0,A4_H]);
-      const M = cv.getPerspectiveTransform(srcTri, dstTri);
-      cv.warpPerspective(src, dst, M, new cv.Size(A4_W, A4_H));
-      const out = document.createElement('canvas');
-      out.width = A4_W; out.height = A4_H;
-      cv.imshow(out, dst);
-      src.delete(); dst.delete(); srcTri.delete(); dstTri.delete(); M.delete();
-      return out;
-    }
-
-    /* --- COLOR --- */
     function solve4x4(G,b){
       const M=[[...G[0],b[0]],[...G[1],b[1]],[...G[2],b[2]],[...G[3],b[3]]];
       for(let col=0;col<4;col++){
@@ -392,8 +1151,7 @@
         if(piv!==col){ const tmp=M[piv];M[piv]=M[col];M[col]=tmp; }
         const pv=M[col][col];
         for(let j=col;j<5;j++) M[col][j]/=pv;
-        for(let r=0;r<4;r++){
-          if(r===col) continue;
+        for(let r=0;r<4;r++) if(r!==col){
           const f=M[r][col];
           for(let j=col;j<5;j++) M[r][j]-=f*M[col][j];
         }
@@ -416,10 +1174,7 @@
       }
       const makeB = (T) => {
         const b=[0,0,0,0];
-        for(let i=0;i<5;i++){
-          const s=S[i], t=T[i];
-          for(let r=0;r<4;r++) b[r]+=s[r]*t;
-        }
+        for(let i=0;i<5;i++) for(let r=0;r<4;r++) b[r]+=S[i][r]*T[i];
         return b;
       };
       const rR=solve4x4(G,makeB(Tr));
@@ -428,379 +1183,185 @@
       return (rR && rG && rB) ? [rR,rG,rB] : null;
     }
 
-    function scanForColors(warpedCanvas) {
-      const ctx = warpedCanvas.getContext('2d');
-      const {x1,y1,x2,y2} = defaultColorWindow;
-      const w = x2-x1, h = y2-y1;
-      if(w <= 0 || h <= 0 || x1+w > warpedCanvas.width || y1+h > warpedCanvas.height) return false;
-      const data = ctx.getImageData(x1,y1,w,h).data;
-      const nearest = {};
-      colorKeys.forEach(k => nearest[k]={dist:Infinity, rgb:null});
-      for(let i=0; i<data.length; i+=4) {
-        const r=data[i], g=data[i+1], b=data[i+2];
-        colorKeys.forEach(k => {
-          const ideal = windowAnchors[k];
-          const dist = (r-ideal[0])**2 + (g-ideal[1])**2 + (b-ideal[2])**2;
-          if(dist < nearest[k].dist){
-            nearest[k] = {dist, rgb:[r,g,b]};
-          }
-        });
-      }
-      let foundCount = 0;
-      colorKeys.forEach(k => {
-        if(nearest[k].rgb) { calibration[k].src = nearest[k].rgb; foundCount++; }
-      });
-      return foundCount === 5;
-    }
-
     function applyRecolor(srcCanvas, T) {
       const [rR, rG, rB] = T;
       const ctx = srcCanvas.getContext('2d');
       const id = ctx.getImageData(0,0,srcCanvas.width,srcCanvas.height);
       const d = id.data;
-      const thr = (whitePct/100)*255;
+      const thr = (WHITE_THRESHOLD/100)*255;
+      
       for(let i=0; i<d.length; i+=4){
         const r=d[i], g=d[i+1], b=d[i+2];
         let nr = rR[0]*r + rR[1]*g + rR[2]*b + rR[3];
         let ng = rG[0]*r + rG[1]*g + rG[2]*b + rG[3];
         let nb = rB[0]*r + rB[1]*g + rB[2]*b + rB[3];
-        nr=Math.min(255,Math.max(0,nr));
-        ng=Math.min(255,Math.max(0,ng));
-        nb=Math.min(255,Math.max(0,nb));
+        nr = nr>255?255:(nr<0?0:nr);
+        ng = ng>255?255:(ng<0?0:ng);
+        nb = nb>255?255:(nb<0?0:nb);
         if (0.299*nr + 0.587*ng + 0.114*nb >= thr) { nr=255; ng=255; nb=255; }
         d[i]=nr; d[i+1]=ng; d[i+2]=nb;
       }
       const out = document.createElement('canvas');
-      out.width = srcCanvas.width; out.height = srcCanvas.height;
-      out.getContext('2d').putImageData(id, 0, 0);
+      out.width=srcCanvas.width; out.height=srcCanvas.height;
+      out.getContext('2d').putImageData(id,0,0);
       return out;
     }
 
-    /* --- PIPELINE --- */
-    async function reprocessCurrentPage() {
-      if(currentIndex < 0 || !pages[currentIndex]) return;
-      showStatus(true); setStatus('Re-processing...');
-      await new Promise(r => setTimeout(r, 10));
-      const p = pages[currentIndex];
-      
-      p.warped = warpImage(p.src, p.quad);
-      if(p.warped && !calibration.red.src) scanForColors(p.warped);
-      const T = buildColorTransform();
-      p.proc = (T && p.warped) ? applyRecolor(p.warped, T) : null;
-      p.thumb = makeThumb(p.proc || p.warped || p.src);
-      
-      showStatus(false);
-      renderPageList();
-      renderCanvas();
-    }
-
-    async function processPage(pageObj) {
-      setStatus(`Processing ${pageObj.name}...`);
-      if(!pageObj.quad) pageObj.quad = detectCorners(pageObj.src);
-      if(!pageObj.warped) pageObj.warped = warpImage(pageObj.src, pageObj.quad);
-      if(pageObj.warped && !calibration.red.src) {
-        if(scanForColors(pageObj.warped)) console.log("Auto-calibrated colors.");
+    function renderList() {
+      els.list.innerHTML = '';
+      if(!STATE.pages.length) {
+        els.list.innerHTML = `<div id="msgEmpty" style="text-align:center; padding:20px; color:var(--text-sub); font-size:13px;">No pages</div>`;
+        return;
       }
-      const T = buildColorTransform();
-      if(T && pageObj.warped) pageObj.proc = applyRecolor(pageObj.warped, T);
-      pageObj.thumb = makeThumb(pageObj.proc || pageObj.warped || pageObj.src);
-    }
-
-    async function handleFiles(fileList) {
-      if(!cvReady) { alert("Engine not ready yet."); return; }
-      showStatus(true);
-      $('emptyState').style.display = 'none';
-      $('canvasWrap').style.display = 'block';
-      const newPages = [];
-      for(const f of fileList) {
-        const img = await loadImage(f);
-        const c = document.createElement('canvas');
-        c.width = img.naturalWidth; c.height = img.naturalHeight;
-        c.getContext('2d').drawImage(img,0,0);
-        newPages.push({ name: f.name, src: c, quad: null });
-      }
-      for(const p of newPages) { await processPage(p); pages.push(p); }
-      renderPageList();
-      selectPage(pages.length - newPages.length);
-      showStatus(false);
-      $('exportBtn').disabled = false;
-    }
-
-    /* --- UI RENDERING --- */
-    function makeThumb(canvas) {
-      const t = document.createElement('canvas');
-      t.width = 50; t.height = 70;
-      t.getContext('2d').drawImage(canvas, 0, 0, 50, 70);
-      return t.toDataURL();
-    }
-
-    let dragSrcEl = null;
-    function renderPageList() {
-      const list = $('pageList');
-      list.innerHTML = '';
-      pages.forEach((p, i) => {
-        const el = document.createElement('div');
-        el.className = `page-item ${i === currentIndex ? 'active' : ''}`;
-        el.draggable = true;
-        el.innerHTML = `
-          <img src="${p.thumb}">
-          <div class="page-info">
-            <span class="page-name">${p.name}</span>
-            <span class="page-status">Processed</span>
-          </div>
+      STATE.pages.forEach((p, i) => {
+        const card = document.createElement('div');
+        card.className = `page-card ${i === STATE.currentIdx ? 'active' : ''}`;
+        card.innerHTML = `
           <span class="material-symbols-rounded drag-handle">drag_indicator</span>
+          <img src="${p.thumbUrl}" class="thumb">
+          <div class="info">
+            <div class="filename">${p.name}</div>
+            <div class="page-meta">Page ${i+1}</div>
+          </div>
+          <button class="btn-del"><span class="material-symbols-rounded" style="font-size:18px">delete</span></button>
         `;
-        el.onclick = () => { if(!isEditingCrop) selectPage(i); };
-        el.addEventListener('dragstart', (e) => {
-          dragSrcEl = el;
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', i);
-          el.classList.add('dragging');
-        });
-        el.addEventListener('dragover', (e) => {
-          if (e.preventDefault) e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-          return false;
-        });
-        el.addEventListener('drop', (e) => {
-          if (e.stopPropagation) e.stopPropagation();
-          const srcIdx = parseInt(e.dataTransfer.getData('text/plain'));
-          const targetIdx = i;
-          if (srcIdx !== targetIdx) {
-            const [movedPage] = pages.splice(srcIdx, 1);
-            pages.splice(targetIdx, 0, movedPage);
-            if(currentIndex === srcIdx) currentIndex = targetIdx;
-            else if(currentIndex === targetIdx && srcIdx > targetIdx) currentIndex++; 
-            else if(currentIndex === targetIdx && srcIdx < targetIdx) currentIndex--;
-            renderPageList();
-            renderCanvas();
-          }
-          return false;
-        });
-        el.addEventListener('dragend', () => { el.classList.remove('dragging'); });
-        list.appendChild(el);
-      });
-    }
-
-    function selectPage(idx) {
-      if(idx < 0 || idx >= pages.length) return;
-      if(isEditingCrop) toggleEditCrop(); 
-      currentIndex = idx;
-      renderPageList();
-      renderCanvas();
-      $('editCropBtn').style.display = 'flex';
-    }
-
-    function renderCanvas() {
-      if(currentIndex < 0 || !pages[currentIndex]) return;
-      const p = pages[currentIndex];
-      const container = $('canvasContainer');
-      
-      let imgToDraw;
-      if (isEditingCrop) {
-        imgToDraw = p.src;
-      } else {
-        imgToDraw = p.proc || p.warped || p.src;
-      }
-
-      canvas.width = imgToDraw.width;
-      canvas.height = imgToDraw.height;
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      ctx.drawImage(imgToDraw, 0, 0);
-
-      if (isEditingCrop && p.quad) {
-        ctx.fillStyle = 'rgba(11, 87, 208, 0.2)';
-        ctx.strokeStyle = '#0b57d0';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        p.quad.forEach((pt, i) => { i===0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y); });
-        ctx.closePath();
-        ctx.fill(); ctx.stroke();
-        ctx.fillStyle = 'white'; ctx.lineWidth = 2;
-        p.quad.forEach((pt) => {
-          ctx.beginPath(); ctx.arc(pt.x, pt.y, 20, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-        });
-      } else if (!isEditingCrop && showStencil && stencilReady) {
-        // PREVIEW: Just draw the image. 
-        ctx.drawImage(stencilImg, 0, 0, canvas.width, canvas.height);
-      }
-
-      const aspect = canvas.width / canvas.height;
-      const availW = container.clientWidth - 40;
-      const availH = container.clientHeight - 40;
-      let cssW = availW;
-      let cssH = availW / aspect;
-      if (cssH > availH) { cssH = availH; cssW = availH * aspect; }
-      
-      const wrap = $('canvasWrap');
-      wrap.style.width = `${cssW}px`; wrap.style.height = `${cssH}px`;
-      canvas.style.width = '100%'; canvas.style.height = '100%';
-      lastRenderScale = cssW / canvas.width;
-    }
-
-    /* --- CONTROLS --- */
-    function toggleEditCrop() {
-      if(currentIndex < 0) return;
-      isEditingCrop = !isEditingCrop;
-      const btn = $('editCropBtn');
-      const resetBtn = $('resetCropBtn');
-      
-      if(isEditingCrop) {
-        btn.innerHTML = '<span class="material-symbols-rounded">check</span> Done';
-        btn.classList.add('active');
-        resetBtn.style.display = 'flex';
-      } else {
-        btn.innerHTML = '<span class="material-symbols-rounded">crop</span> Edit Crop';
-        btn.classList.remove('active');
-        resetBtn.style.display = 'none';
-        reprocessCurrentPage();
-      }
-      renderCanvas();
-    }
-    
-    function resetToAutoCrop() {
-        if(!isEditingCrop || currentIndex < 0) return;
-        const p = pages[currentIndex];
-        const newQuad = detectCorners(p.src);
-        if(newQuad) {
-            p.quad = newQuad;
-            renderCanvas();
-        }
-    }
-
-    /* --- EVENTS --- */
-    function getImgCoords(e) {
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY
-      };
-    }
-
-    canvas.addEventListener('mousedown', e => {
-      if(!isEditingCrop) return;
-      const p = pages[currentIndex];
-      const {x, y} = getImgCoords(e);
-      const threshold = 40; 
-      let minDist = Infinity;
-      let idx = -1;
-      p.quad.forEach((pt, i) => {
-        const dist = Math.hypot(pt.x - x, pt.y - y);
-        if (dist < minDist) { minDist = dist; idx = i; }
-      });
-      if (minDist < threshold) dragCornerIdx = idx;
-    });
-
-    window.addEventListener('mousemove', e => {
-      if(!isEditingCrop || dragCornerIdx === -1) return;
-      const p = pages[currentIndex];
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      let nx = (e.clientX - rect.left) * scaleX;
-      let ny = (e.clientY - rect.top) * scaleY;
-      nx = Math.max(0, Math.min(p.src.width, nx));
-      ny = Math.max(0, Math.min(p.src.height, ny));
-      p.quad[dragCornerIdx] = { x: nx, y: ny };
-      renderCanvas();
-    });
-
-    window.addEventListener('mouseup', () => { dragCornerIdx = -1; });
-
-    /* --- EXPORT (VISUAL CLONE FALLBACK) --- */
-    async function exportPdf() {
-      if(!pages.length) return;
-      setStatus('Generating PDF...'); showStatus(true);
-      await new Promise(r => setTimeout(r, 50));
-      
-      try {
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF({ unit:'pt', format:'a4' });
-        const pW = pdf.internal.pageSize.getWidth();
-        const pH = pdf.internal.pageSize.getHeight();
-        
-        for(let i=0; i<pages.length; i++) {
-            if(i > 0) pdf.addPage();
-            const p = pages[i];
-            const base = p.proc || p.warped || p.src;
-            
-            // Draw Base Image
-            const comp = document.createElement('canvas');
-            comp.width = base.width; comp.height = base.height;
-            const cc = comp.getContext('2d');
-            cc.drawImage(base, 0, 0);
-            
-            if(showStencil && stencilReady) {
-                try {
-                  // Attempt to use the actual image
-                  const testC = document.createElement('canvas');
-                  testC.width=1; testC.height=1;
-                  testC.getContext('2d').drawImage(stencilImg, 0, 0);
-                  testC.toDataURL(); 
-                  
-                  // Safe! Draw real image
-                  cc.drawImage(stencilImg, 0, 0, base.width, base.height);
-                } catch(e) {
-                  // Fallback: Create a visually identical clone programmatically 
-                  // This satisfies the "Must contain image" requirement visually 
-                  // without triggering the security error.
-                  console.warn("Stencil Tainted. Using visual clone.");
-                  cc.strokeStyle = '#facc15'; 
-                  cc.lineWidth = 40;
-                  cc.strokeRect(0, 0, base.width, base.height);
-                }
+        card.onclick = (e) => { if(!e.target.closest('.btn-del')) selectPage(i); };
+        card.querySelector('.btn-del').onclick = (e) => {
+          e.stopPropagation();
+          if(confirm('Delete page?')) {
+            STATE.pages.splice(i, 1);
+            if(!STATE.pages.length) {
+              STATE.currentIdx = -1;
+              els.paper.style.display = 'none';
+              els.empty.style.display = 'flex';
+              $('exportBtn').disabled = true;
+              $('cropBtn').disabled = true;
+              $('autoCropBtn').style.display = 'none';
+              $('stencilBtn').disabled = true;
+              $('stencilBtn').classList.remove('active');
+              STATE.isStencilMode = false;
+            } else {
+              STATE.currentIdx = Math.max(0, STATE.currentIdx - 1);
+              selectPage(STATE.currentIdx);
             }
-
-            const ratio = Math.min(pW/comp.width, pH/comp.height);
-            const dw = comp.width * ratio;
-            const dh = comp.height * ratio;
-            pdf.addImage(comp.toDataURL('image/jpeg', 0.85), 'JPEG', (pW-dw)/2, (pH-dh)/2, dw, dh);
-        }
-        pdf.save('scanned_docs.pdf');
-      } catch(e) {
-        alert("Error creating PDF: " + e.message);
-      }
-      showStatus(false);
+            renderList();
+          }
+        };
+        els.list.appendChild(card);
+      });
     }
 
-    const loadImage = (file) => new Promise((res) => {
+    let dragPt = -1;
+    els.canvas.addEventListener('mousedown', e => {
+      const p = STATE.pages[STATE.currentIdx];
+      const rect = els.canvas.getBoundingClientRect();
+      const scaleX = els.canvas.width / rect.width;
+      const scaleY = els.canvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      let min = Infinity;
+      p.quad.forEach((pt, i) => {
+        const d = Math.hypot(pt.x - x, pt.y - y);
+        if(d < min) { min = d; dragPt = i; }
+      });
+      if(min > (els.canvas.width * 0.05)) dragPt = -1;
+      if(dragPt !== -1) updateMagnifier(p.quad[dragPt].x, p.quad[dragPt].y);
+    });
+    window.addEventListener('mousemove', e => {
+      if(dragPt === -1) return;
+      const p = STATE.pages[STATE.currentIdx];
+      const rect = els.canvas.getBoundingClientRect();
+      const scaleX = els.canvas.width / rect.width;
+      const scaleY = els.canvas.height / rect.height;
+      let x = (e.clientX - rect.left) * scaleX;
+      let y = (e.clientY - rect.top) * scaleY;
+      x = Math.max(0, Math.min(els.canvas.width, x));
+      y = Math.max(0, Math.min(els.canvas.height, y));
+      p.quad[dragPt] = {x, y};
+      requestAnimationFrame(drawCropCanvas);
+      updateMagnifier(x, y);
+    });
+    window.addEventListener('mouseup', () => {
+      dragPt = -1;
+      els.magnifier.style.display = 'none'; 
+    });
+
+    function setTheme(mode) {
+      STATE.theme = mode;
+      if(mode === 'dark') {
+        document.body.classList.add('dark-mode');
+        $('themeBtn').innerHTML = '<span class="material-symbols-rounded">light_mode</span>';
+      } else {
+        document.body.classList.remove('dark-mode');
+        $('themeBtn').innerHTML = '<span class="material-symbols-rounded">dark_mode</span>';
+      }
+      localStorage.setItem('theme', mode);
+      if(STATE.isCropMode) drawCropCanvas();
+    }
+    $('themeBtn').onclick = () => setTheme(STATE.theme === 'dark' ? 'light' : 'dark');
+
+    const loadImage = (file) => new Promise(r => {
       const img = new Image();
-      img.onload = () => res(img);
+      img.onload = () => r(img);
       img.src = URL.createObjectURL(file);
     });
 
-    function setStatus(msg) { $('statusText').textContent = msg; }
-    function showStatus(show) { $('statusOverlay').style.display = show ? 'flex' : 'none'; }
+    const canvasToUrl = (c) => new Promise(r => c.toBlob(b => r(URL.createObjectURL(b))));
 
-    /* --- BINDINGS --- */
-    $('fileInput').addEventListener('change', e => handleFiles([...e.target.files]));
-    $('exportBtn').addEventListener('click', exportPdf);
-    $('editCropBtn').addEventListener('click', toggleEditCrop);
-    $('resetCropBtn').addEventListener('click', resetToAutoCrop);
-    $('stencilToggle').addEventListener('change', e => {
-        showStencil = e.target.checked;
-        renderCanvas();
-    });
-    $('whiteThreshold').addEventListener('input', e => {
-      whitePct = parseInt(e.target.value);
-      if(pages[currentIndex] && !isEditingCrop) {
-        const p = pages[currentIndex];
-        const T = buildColorTransform();
-        if(T && p.warped) {
-           p.proc = applyRecolor(p.warped, T);
-           p.thumb = makeThumb(p.proc);
-           renderCanvas();
-           renderPageList();
+    function resizeCanvas(c, w) {
+      const t = document.createElement('canvas');
+      const ratio = c.height / c.width;
+      t.width = w; t.height = w * ratio;
+      t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
+      return t;
+    }
+
+    function showToast(msg) {
+      const t = $('toast'); t.textContent = msg; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2000);
+    }
+
+    $('exportBtn').onclick = async () => {
+      if(!STATE.pages.length) return;
+      showToast('Generating PDF...');
+      await new Promise(r=>setTimeout(r,100));
+      
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const pdfW = doc.internal.pageSize.getWidth();
+      const pdfH = doc.internal.pageSize.getHeight();
+
+      for(let i=0; i<STATE.pages.length; i++) {
+        if(i>0) doc.addPage();
+        const p = STATE.pages[i];
+        
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = p.processed.width;
+        tempCanvas.height = p.processed.height;
+        const tCtx = tempCanvas.getContext('2d');
+        
+        tCtx.drawImage(p.processed, 0, 0);
+        
+        if(STATE.isStencilMode || p.marker) {
+            drawOverlay(tCtx, tempCanvas.width, tempCanvas.height, true);
         }
-      }
-    });
-    
-    window.addEventListener('resize', renderCanvas);
 
-    /* --- INIT --- */
-    window.Module = { onRuntimeInitialized(){ cvReady = true; console.log("OpenCV Ready"); }};
+        const ratio = Math.min(pdfW / tempCanvas.width, pdfH / tempCanvas.height);
+        const w = tempCanvas.width * ratio;
+        const h = tempCanvas.height * ratio;
+        const data = tempCanvas.toDataURL('image/jpeg', 0.8);
+        doc.addImage(data, 'JPEG', (pdfW-w)/2, (pdfH-h)/2, w, h);
+      }
+      
+      doc.save(($('docTitle').value || 'scan') + '.pdf');
+      showToast('PDF Downloaded');
+    };
+
+    $('fileInput').onchange = e => handleFiles(e.target.files);
+    $('cropBtn').onclick = toggleCropMode;
+    $('autoCropBtn').onclick = autoCrop;
+    $('stencilBtn').onclick = toggleStencilMode;
+
   </script>
 </body>
 </html>
