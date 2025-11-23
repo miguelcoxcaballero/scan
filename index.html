@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Scanner</title>
+  <title>Scanner Pro</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#131314">
   
@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
-  
+
   <style>
     :root {
       /* --- LIGHT THEME --- */
@@ -18,6 +18,7 @@
       --md-sys-color-on-primary: #ffffff;
       --md-sys-color-primary-container: #d3e3fd;
       --md-sys-color-on-primary-container: #041e49;
+      --md-sys-color-error: #ba1a1a;
       --surface-1: #ffffff;
       --surface-2: #f0f4f9;
       --surface-3: #f8fafd;
@@ -28,6 +29,9 @@
       --grid-color: #e0e0e0;
       --shadow-color: rgba(0,0,0,0.08);
       --ease-spring: cubic-bezier(0.2, 0.0, 0, 1.0);
+
+      /* mobile layout constants (taller bottom sheet) */
+      --mobile-bottom-sheet-height: 220px;
     }
 
     /* --- DARK THEME --- */
@@ -47,10 +51,17 @@
       --shadow-color: rgba(0,0,0,0.6);
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; outline: none; -webkit-tap-highlight-color: transparent; }
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      outline: none; 
+      -webkit-tap-highlight-color: transparent; 
+    }
     
     body {
       height: 100vh;
+      width: 100vw;
       display: flex;
       background-color: var(--surface-3);
       color: var(--text-main);
@@ -59,9 +70,7 @@
       transition: background-color 0.3s ease;
     }
 
-    /* --- COMMON CLASSES --- */
     .hidden { display: none !important; }
-    .fade-out { opacity: 0; pointer-events: none; }
     
     /* --- LOADING --- */
     #appLoading {
@@ -96,17 +105,9 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    .hero-icon {
-      font-size: 64px; color: var(--md-sys-color-primary);
-      margin-bottom: 8px;
-    }
-    .hero-title {
-      font-family: 'Google Sans', sans-serif; font-size: 44px; font-weight: 400;
-      color: var(--text-main); margin: 0;
-    }
-    .hero-sub {
-      font-size: 16px; color: var(--text-sub); margin-top: -16px; margin-bottom: 16px;
-    }
+    .hero-icon { font-size: 64px; color: var(--md-sys-color-primary); margin-bottom: 8px; }
+    .hero-title { font-family: 'Google Sans', sans-serif; font-size: 44px; font-weight: 400; color: var(--text-main); margin: 0; }
+    .hero-sub { font-size: 16px; color: var(--text-sub); margin-top: -16px; margin-bottom: 16px; }
 
     .btn-hero {
       height: 56px; padding: 0 32px; border-radius: 28px;
@@ -121,7 +122,7 @@
 
     /* --- NAMING MODAL --- */
     #modalOverlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 600;
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 600;
       display: none; align-items: center; justify-content: center;
       backdrop-filter: blur(4px); opacity: 0; transition: opacity 0.3s;
       padding: 16px;
@@ -130,7 +131,7 @@
     
     .modal-card {
       background: var(--surface-1); width: 100%; max-width: 400px; padding: 24px; border-radius: 28px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
       transform: scale(0.9); opacity: 0; transition: 0.3s var(--ease-spring);
       display: flex; flex-direction: column; gap: 24px;
     }
@@ -156,16 +157,15 @@
       color: var(--md-sys-color-primary); font-family: 'Google Sans'; font-weight: 500;
       cursor: pointer; border-radius: 20px; transition: 0.2s;
     }
-    .btn-text:hover { background: var(--md-sys-color-primary-container); }
+    .btn-text:hover { background: rgba(0,0,0,0.05); }
     .btn-fill {
       height: 40px; padding: 0 24px; border: none; border-radius: 20px;
       background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
       font-family: 'Google Sans'; font-weight: 500; cursor: pointer; transition: 0.2s;
     }
-    .btn-fill:hover { box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    .btn-fill:hover { filter: brightness(1.1); }
 
-
-    /* --- MAIN APP LAYOUT (Initially Hidden) --- */
+    /* --- MAIN APP LAYOUT --- */
     #appContainer {
       flex: 1; display: flex; padding: 12px; gap: 16px; height: 100vh; width: 100vw;
       opacity: 0; transform: scale(0.98);
@@ -197,7 +197,7 @@
     .actions { display: flex; gap: 8px; align-items: center; }
     
     .btn-icon {
-      width: 40px; height: 40px; border-radius: 50%; border: none;
+      width: 44px; height: 44px; border-radius: 50%; border: none;
       background: transparent; color: var(--text-sub); cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       transition: 0.2s;
@@ -205,14 +205,14 @@
     .btn-icon:hover { background: var(--surface-1); color: var(--text-main); }
 
     .btn-chip {
-      height: 36px; padding: 0 16px; border-radius: 18px; 
+      height: 40px; padding: 0 16px; border-radius: 20px; 
       border: 1px solid var(--outline); background: transparent; color: var(--text-main);
       display: flex; align-items: center; gap: 8px; font-family: 'Google Sans', sans-serif; font-size: 13px; font-weight: 500;
       cursor: pointer; transition: 0.2s; white-space: nowrap;
     }
     .btn-chip:hover { background: var(--surface-1); }
     .btn-chip.active { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); border-color: transparent; }
-    .btn-chip:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-chip:disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--outline-variant); }
 
     /* --- PREVIEW CONTAINER --- */
     #viewport {
@@ -222,7 +222,8 @@
       border-radius: 16px;
       position: relative;
       overflow: hidden;
-      min-height: 0; /* Important for flex nesting */
+      min-height: 0;
+      touch-action: none;
     }
 
     #paper {
@@ -233,16 +234,13 @@
     }
 
     #previewImg {
-      display: block; width: 100%; height: 100%; object-fit: contain;
-      pointer-events: none;
+      display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none;
     }
     
     .layer-canvas {
-      position: absolute; inset: 0; width: 100%; height: 100%;
-      pointer-events: none;
+      position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
     }
     #cropLayer { cursor: crosshair; pointer-events: auto; display: none; touch-action: none; }
-    
     #stencilLayer { display: block; z-index: 10; } 
 
     #emptyState {
@@ -259,14 +257,9 @@
       border: 3px solid var(--md-sys-color-primary);
       background: #fff;
       box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-      overflow: hidden;
-      pointer-events: none;
-      z-index: 9999;
-      display: none; 
+      overflow: hidden; pointer-events: none; z-index: 9999; display: none; 
     }
-    #magCanvas {
-      width: 100%; height: 100%; display: block;
-    }
+    #magCanvas { width: 100%; height: 100%; display: block; }
 
     /* --- RIGHT PANEL (SIDEBAR) --- */
     #sidebar {
@@ -290,13 +283,21 @@
     
     .list-header { font-size: 11px; font-weight: 600; color: var(--text-sub); padding: 0 8px; letter-spacing: 1px; }
     
-    #pageList { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
+    #pageList { 
+      flex: 1; 
+      overflow-y: auto; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 8px; 
+      padding-right: 4px; 
+    }
     #pageList::-webkit-scrollbar { width: 4px; }
     #pageList::-webkit-scrollbar-thumb { background: var(--outline); border-radius: 4px; }
 
     .page-card {
       display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 12px;
       border: 1px solid transparent; cursor: pointer; transition: 0.2s; background: transparent;
+      user-select: none;
     }
     .page-card:hover { background: rgba(255,255,255,0.05); }
     .page-card.active { 
@@ -308,26 +309,26 @@
 
     .thumb {
       width: 48px; height: 64px; border-radius: 6px; background: #eee; object-fit: cover;
-      border: 1px solid var(--outline); flex-shrink: 0;
+      border: 1px solid var(--outline); flex-shrink: 0; pointer-events: none;
     }
-    .info { flex: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
+    .info { 
+      flex: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: center; pointer-events: none;
+    }
     .filename { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .page-meta { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
+    .drag-handle { color: var(--outline); font-size: 20px; cursor: grab; }
 
     .btn-del {
-      width: 32px; height: 32px; border-radius: 50%; border: none; background: transparent;
+      width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent;
       color: var(--text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center;
     }
     .btn-del:hover { background: rgba(255,0,0,0.1); color: var(--md-sys-color-error); }
 
     .bottom-controls {
-      padding-top: 16px;
-      border-top: 1px solid var(--outline);
-      flex-shrink: 0;
+      padding-top: 16px; border-top: 1px solid var(--outline); flex-shrink: 0;
     }
     .btn-main {
-      width: 100%; 
-      height: 48px; border-radius: 24px; border: none;
+      width: 100%; height: 48px; border-radius: 24px; border: none;
       background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary);
       font-family: 'Google Sans', sans-serif; font-weight: 500; cursor: pointer;
       display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s;
@@ -339,8 +340,31 @@
       position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px);
       background: var(--text-main); color: var(--surface-3); padding: 12px 24px; border-radius: 32px;
       font-size: 14px; opacity: 0; transition: 0.3s cubic-bezier(0.2,0,0,1); pointer-events: none; z-index: 100;
+      white-space: nowrap;
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* --- MOBILE: FLOATING ADD BUTTON --- */
+    #btnAddMobile {
+      display: none; /* Hidden on desktop */
+      position: absolute;
+      bottom: 24px;
+      right: 16px;
+      width: 56px;
+      height: 56px;
+      border-radius: 999px;
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      border: none;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+      z-index: 80;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    #btnAddMobile:active { transform: scale(0.95); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
+    #btnAddMobile span { font-size: 28px; }
 
     /* --- MOBILE RESPONSIVE STYLES --- */
     @media (max-width: 768px) {
@@ -354,64 +378,99 @@
       
       #mainPanel {
         border-radius: 0;
-        flex: 1; /* Take all available height first */
+        flex: 1;
+        margin-bottom: 0;
       }
       
       #sidebar {
         width: 100%;
         height: auto;
-        max-height: 260px; /* Limit height of bottom drawer */
+        min-height: var(--mobile-bottom-sheet-height);
         border-radius: 24px 24px 0 0;
-        box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
         z-index: 50;
-        padding: 16px;
+        padding: 12px 16px;
         flex-shrink: 0;
         gap: 12px;
+        background: var(--surface-1);
       }
 
-      /* Horizontal Scrolling List for Mobile */
+      #sidebar .brand { display: none; }
+
+      /* Hide the big desktop "Add" button */
+      #sidebar .fab-add { display: none; }
+      
+      /* Floating FAB above the sheet */
+      #btnAddMobile { 
+        display: flex;
+        bottom: calc(var(--mobile-bottom-sheet-height) + 16px);
+      }
+
+      /* Horizontal, roomy page strip */
       #pageList {
         flex-direction: row;
         overflow-x: auto;
         overflow-y: hidden;
         padding-bottom: 4px;
         gap: 12px;
+        align-items: center;
       }
       
       #pageList::-webkit-scrollbar { height: 4px; width: auto; }
 
       .page-card {
-        min-width: 200px; /* Wider for better touch targets */
+        min-width: 190px;
         border: 1px solid var(--outline-variant);
+        flex-shrink: 0;
       }
 
-      /* Adjust Toolbar */
-      #toolbar { padding: 0 12px; height: 56px; }
-      .doc-title { width: 120px; font-size: 16px; padding: 4px 8px; }
-      .btn-chip { padding: 0 12px; }
-      .btn-chip span { font-size: 18px; margin-right: 0; }
-      /* Hide text labels in chips on very small screens if needed, 
-         but for now flexbox should handle it */
-      
-      /* Hide Brand in sidebar to save space */
-      #sidebar .brand { display: none; }
-      
-      /* Landing Page Adjustments */
+      .thumb {
+        width: 64px;
+        height: 90px;
+      }
+
+      .drag-handle {
+        font-size: 18px;
+        cursor: grab;
+      }
+
+      .filename {
+        font-size: 12px;
+      }
+
+      .page-meta {
+        font-size: 11px;
+        margin-top: 2px;
+      }
+
+      .btn-del {
+        width: 32px;
+        height: 32px;
+      }
+
+      /* Toolbar tweaks */
+      #toolbar { padding: 0 8px; height: 56px; }
+      .doc-title { width: 150px; font-size: 16px; padding: 4px 8px; }
+      .btn-chip { padding: 0 10px; height: 34px; }
+      .btn-chip span.label-text { display: none; }
+
       .hero-title { font-size: 36px; }
       .hero-icon { font-size: 48px; }
-    }
 
+      /* Toast floats above sheet and FAB */
+      #toast { 
+        bottom: calc(var(--mobile-bottom-sheet-height) + 64px); 
+      }
+    }
   </style>
 </head>
 <body>
 
-  <!-- LOADING SPINNER -->
   <div id="appLoading">
     <div class="spinner"></div>
     <span style="font-family:'Google Sans'; font-size:18px; color:var(--text-main);">Loading Core...</span>
   </div>
 
-  <!-- LANDING PAGE -->
   <div id="landingPage">
     <div class="hero-content">
       <span class="material-symbols-rounded hero-icon">document_scanner</span>
@@ -425,7 +484,6 @@
     </div>
   </div>
 
-  <!-- NAMING MODAL -->
   <div id="modalOverlay">
     <div class="modal-card">
       <h2 class="modal-title">New Scan</h2>
@@ -440,12 +498,18 @@
     </div>
   </div>
 
-  <!-- MAIN APP CONTAINER (Initially Hidden) -->
   <div id="appContainer" class="hidden">
     
     <div id="magnifier">
       <canvas id="magCanvas"></canvas>
     </div>
+
+    <!-- Mobile floating FAB -->
+    <button id="btnAddMobile" aria-label="Add pages">
+      <span class="material-symbols-rounded">add</span>
+    </button>
+
+    <input type="file" id="fileInput" accept="image/*" multiple hidden disabled>
 
     <div id="mainPanel">
       <div id="toolbar">
@@ -457,15 +521,15 @@
           <div style="width:1px; height:20px; background:var(--outline); opacity:0.3;"></div>
           
           <button class="btn-chip" id="autoCropBtn" style="display:none">
-            <span class="material-symbols-rounded">auto_fix</span> <span style="display:none">Auto</span>
+            <span class="material-symbols-rounded">auto_fix</span> <span class="label-text">Auto</span>
           </button>
 
           <button class="btn-chip" id="cropBtn" disabled>
-            <span class="material-symbols-rounded">crop</span>
+            <span class="material-symbols-rounded">crop</span> <span class="label-text">Crop</span>
           </button>
 
           <button class="btn-chip" id="stencilBtn" disabled>
-            <span class="material-symbols-rounded">grid_4x4</span>
+            <span class="material-symbols-rounded">grid_4x4</span> <span class="label-text">Ref</span>
           </button>
         </div>
       </div>
@@ -492,18 +556,13 @@
         <span class="brand-name">Scanner</span>
       </div>
 
-      <label class="fab-add">
+      <div class="fab-add" id="btnDesktopAdd">
         <span class="material-symbols-rounded">add</span> Add Pages
-        <input type="file" id="fileInput" accept="image/*" multiple hidden disabled>
-      </label>
+      </div>
 
       <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
         <div class="section-header list-header">PAGES</div>
-        <div id="pageList">
-          <div id="msgEmpty" style="text-align:center; padding:20px; color:var(--text-sub); font-size:13px; font-style:italic;">
-            No pages
-          </div>
-        </div>
+        <div id="pageList"></div>
       </div>
 
       <div class="bottom-controls">
@@ -523,7 +582,7 @@
       pages: [], 
       currentIdx: -1,
       isCropMode: false,
-      isStencilMode: true, // STENCIL ON BY DEFAULT
+      isStencilMode: true,
       cvReady: false,
       theme: 'dark' 
     };
@@ -575,11 +634,33 @@
       fileIn: $('fileInput'),
       loading: $('appLoading'),
       magnifier: $('magnifier'),
-      magCanvas: $('magCanvas')
+      magCanvas: $('magCanvas'),
+      btnAddMobile: $('btnAddMobile'),
+      btnDesktopAdd: $('btnDesktopAdd')
     };
     const ctx = els.canvas.getContext('2d');
     const stx = els.stencil.getContext('2d');
     const magCtx = els.magCanvas.getContext('2d');
+
+    let sortable = null;
+
+    function setupSortable() {
+      if (sortable) sortable.destroy();
+      sortable = new Sortable(els.list, {
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        handle: '.drag-handle',
+        direction: window.innerWidth <= 768 ? 'horizontal' : 'vertical',
+        onEnd: (evt) => {
+          const item = STATE.pages.splice(evt.oldIndex, 1)[0];
+          STATE.pages.splice(evt.newIndex, 0, item);
+          if(STATE.currentIdx === evt.oldIndex) STATE.currentIdx = evt.newIndex;
+          else if(STATE.currentIdx > evt.oldIndex && STATE.currentIdx <= evt.newIndex) STATE.currentIdx--;
+          else if(STATE.currentIdx < evt.oldIndex && STATE.currentIdx >= evt.newIndex) STATE.currentIdx++;
+          renderList();
+        }
+      });
+    }
 
     // --- INITIALIZATION ---
     var Module = {
@@ -592,18 +673,7 @@
         const sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         setTheme(localStorage.getItem('theme') || (sysDark ? 'dark' : 'light'));
         
-        new Sortable(els.list, {
-          animation: 150, ghostClass: 'sortable-ghost',
-          direction: window.innerWidth <= 768 ? 'horizontal' : 'vertical', // Adaptive direction
-          onEnd: (evt) => {
-            const item = STATE.pages.splice(evt.oldIndex, 1)[0];
-            STATE.pages.splice(evt.newIndex, 0, item);
-            if(STATE.currentIdx === evt.oldIndex) STATE.currentIdx = evt.newIndex;
-            else if(STATE.currentIdx > evt.oldIndex && STATE.currentIdx <= evt.newIndex) STATE.currentIdx--;
-            else if(STATE.currentIdx < evt.oldIndex && STATE.currentIdx >= evt.newIndex) STATE.currentIdx++;
-            renderList();
-          }
-        });
+        setupSortable();
 
         new ResizeObserver(() => {
           if(STATE.currentIdx >= 0) updateViewGeometry();
@@ -639,8 +709,14 @@
       setTimeout(() => { els.app.classList.add('active'); }, 50);
     }
 
+    /* --- FILE INPUT HANDLING --- */
+    const triggerFile = () => els.fileIn.click();
+    els.btnAddMobile.onclick = triggerFile;
+    els.btnDesktopAdd.onclick = triggerFile;
+    els.fileIn.onchange = e => handleFiles(e.target.files);
 
-    /* --- EXISTING LOGIC --- */
+
+    /* --- LOGIC --- */
 
     async function handleFiles(files) {
       if(!STATE.cvReady || !files.length) return;
@@ -672,7 +748,7 @@
         const processed = (T) ? applyRecolor(alignedCanvas, T) : alignedCanvas;
         
         const displayUrl = await canvasToUrl(processed);
-        const thumbUrl = await canvasToUrl(resizeCanvas(processed, 60));
+        const thumbUrl = await canvasToUrl(resizeCanvas(processed, 100));
 
         STATE.pages.push({
           id: Date.now() + Math.random(),
@@ -695,7 +771,6 @@
     function smartWarp(srcCanvas, pageQuad) {
         const yellowQuad = detectYellowRect(srcCanvas);
         if (yellowQuad) {
-            console.log("Yellow Box Detected! Warping to Stencil coords.");
             const dstStencil = [
                 STENCIL_CFG.x, STENCIL_CFG.y, 
                 STENCIL_CFG.x + STENCIL_CFG.w, STENCIL_CFG.y,
@@ -704,7 +779,6 @@
             ];
             return { canvas: warpGeneral(srcCanvas, yellowQuad, dstStencil), usedYellow: true };
         } else {
-            console.log("Yellow Box not found. Falling back to Page corners.");
             const dstA4 = [0,0, A4_W,0, A4_W,A4_H, 0,A4_H];
             return { canvas: warpGeneral(srcCanvas, pageQuad, dstA4), usedYellow: false };
         }
@@ -816,7 +890,7 @@
       const p = STATE.pages[STATE.currentIdx];
 
       if(STATE.isCropMode) {
-        btn.innerHTML = '<span class="material-symbols-rounded">check</span>';
+        btn.innerHTML = '<span class="material-symbols-rounded">check</span> <span class="label-text">Done</span>';
         btn.classList.add('active');
         autoBtn.style.display = 'flex';
         stencilBtn.style.display = 'none'; 
@@ -827,7 +901,7 @@
         els.canvas.height = p.src.height;
         drawCropCanvas();
       } else {
-        btn.innerHTML = '<span class="material-symbols-rounded">crop</span>';
+        btn.innerHTML = '<span class="material-symbols-rounded">crop</span> <span class="label-text">Crop</span>';
         btn.classList.remove('active');
         autoBtn.style.display = 'none';
         stencilBtn.style.display = 'flex';
@@ -861,7 +935,7 @@
           const processed = (T) ? applyRecolor(alignedCanvas, T) : alignedCanvas;
           p.processed = processed;
           p.displayUrl = await canvasToUrl(processed);
-          p.thumbUrl = await canvasToUrl(resizeCanvas(processed, 60));
+          p.thumbUrl = await canvasToUrl(resizeCanvas(processed, 100));
           p.yellowUsed = usedYellow; 
           selectPage(STATE.currentIdx);
           renderList();
@@ -888,10 +962,10 @@
         const out = document.createElement('canvas');
         out.width = A4_W;
         out.height = A4_H;
-        const ctx = out.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, A4_W, A4_H);
-        ctx.drawImage(srcCanvas, diffX, diffY);
+        const cCtx = out.getContext('2d');
+        cCtx.fillStyle = '#ffffff';
+        cCtx.fillRect(0, 0, A4_W, A4_H);
+        cCtx.drawImage(srcCanvas, diffX, diffY);
         return out;
     }
 
@@ -936,11 +1010,11 @@
     }
 
     function scanForColors(warpedCanvas) {
-      const ctx = warpedCanvas.getContext('2d');
+      const cCtx = warpedCanvas.getContext('2d');
       const {x1,y1,x2,y2} = defaultColorWindow;
       const w=x2-x1, h=y2-y1;
       if(w <= 0 || h <= 0) return { found: false, blackPt: null };
-      const data = ctx.getImageData(x1,y1,w,h).data;
+      const data = cCtx.getImageData(x1,y1,w,h).data;
       const nearest = {};
       colorKeys.forEach(k => nearest[k]={dist:Infinity, rgb:null, xy:null});
       for(let i=0; i<data.length; i+=12) { 
@@ -963,11 +1037,11 @@
     }
 
     function findBlackBlobCentroid(canvas, seed) {
-        const ctx = canvas.getContext('2d');
+        const cCtx = canvas.getContext('2d');
         const {x1,y1,x2,y2} = defaultColorWindow;
         const w = x2 - x1;
         const h = y2 - y1;
-        const imageData = ctx.getImageData(x1, y1, w, h);
+        const imageData = cCtx.getImageData(x1, y1, w, h);
         const data = imageData.data;
         const startX = Math.round(seed.x - x1);
         const startY = Math.round(seed.y - y1);
@@ -1037,7 +1111,7 @@
       p.quad.forEach((pt,i) => i===0 ? ctx.moveTo(pt.x,pt.y) : ctx.lineTo(pt.x,pt.y));
       ctx.closePath();
       ctx.stroke();
-      const rad = Math.max(5, w/100);
+      const rad = Math.max(5, w/80);
       p.quad.forEach(pt => {
         ctx.beginPath();
         ctx.arc(pt.x, pt.y, rad*2, 0, Math.PI*2);
@@ -1053,7 +1127,7 @@
 
     function updateMagnifier(x, y) {
       const p = STATE.pages[STATE.currentIdx];
-      const zoom = 2.5;
+      const zoom = 2;
       const size = 140;
       els.magCanvas.width = size;
       els.magCanvas.height = size;
@@ -1073,10 +1147,8 @@
       const screenX = rect.left + (x * scaleX);
       const screenY = rect.top + (y * scaleY);
       
-      // Smart Offset: Check if on mobile (screen width) or touch device
-      // If mobile, offset higher because thumb is larger than mouse pointer
       const isMobile = window.innerWidth <= 768;
-      const yOffset = (screenY < 180) ? 80 : (isMobile ? -120 : -80);
+      const yOffset = (screenY < 150) ? 80 : (isMobile ? -140 : -90);
       
       els.magnifier.style.display = 'block';
       els.magnifier.style.left = `${screenX}px`;
@@ -1120,8 +1192,10 @@
       const s = pts.map(p => p.x + p.y);
       const d = pts.map(p => p.x - p.y);
       return [
-        pts[s.indexOf(Math.min(...s))], pts[d.indexOf(Math.max(...d))],
-        pts[s.indexOf(Math.max(...s))], pts[d.indexOf(Math.min(...d))]
+        pts[s.indexOf(Math.min(...s))], 
+        pts[d.indexOf(Math.max(...d))],
+        pts[s.indexOf(Math.max(...s))], 
+        pts[d.indexOf(Math.min(...d))]
       ];
     }
 
@@ -1168,8 +1242,8 @@
 
     function applyRecolor(srcCanvas, T) {
       const [rR, rG, rB] = T;
-      const ctx = srcCanvas.getContext('2d');
-      const id = ctx.getImageData(0,0,srcCanvas.width,srcCanvas.height);
+      const cCtx = srcCanvas.getContext('2d');
+      const id = cCtx.getImageData(0,0,srcCanvas.width,srcCanvas.height);
       const d = id.data;
       const thr = (WHITE_THRESHOLD/100)*255;
       
@@ -1193,7 +1267,7 @@
     function renderList() {
       els.list.innerHTML = '';
       if(!STATE.pages.length) {
-        els.list.innerHTML = `<div id="msgEmpty" style="text-align:center; padding:20px; color:var(--text-sub); font-size:13px;">No pages</div>`;
+        els.list.innerHTML = `<div id="msgEmpty" style="width:100%; text-align:center; padding:20px; color:var(--text-sub); font-size:13px;">No pages</div>`;
         return;
       }
       STATE.pages.forEach((p, i) => {
@@ -1206,7 +1280,7 @@
             <div class="filename">${p.name}</div>
             <div class="page-meta">Page ${i+1}</div>
           </div>
-          <button class="btn-del"><span class="material-symbols-rounded" style="font-size:18px">delete</span></button>
+          <button class="btn-del" aria-label="Delete page ${i+1}"><span class="material-symbols-rounded" style="font-size:18px">delete</span></button>
         `;
         card.onclick = (e) => { if(!e.target.closest('.btn-del')) selectPage(i); };
         card.querySelector('.btn-del').onclick = (e) => {
@@ -1243,7 +1317,7 @@
 
     // --- TOUCH EVENTS ---
     els.canvas.addEventListener('touchstart', e => {
-      e.preventDefault(); // Prevent scroll while cropping
+      e.preventDefault();
       handleStart(e.touches[0].clientX, e.touches[0].clientY);
     }, {passive: false});
 
@@ -1269,8 +1343,9 @@
         const d = Math.hypot(pt.x - x, pt.y - y);
         if(d < min) { min = d; dragPt = i; }
       });
-      // Larger hit area for touch (0.1 instead of 0.05)
-      const hitArea = els.canvas.width * (window.innerWidth <= 768 ? 0.1 : 0.05);
+      const hitRadiusPct = (window.innerWidth <= 768) ? 0.12 : 0.05;
+      const hitArea = els.canvas.width * hitRadiusPct;
+      
       if(min > hitArea) dragPt = -1;
       if(dragPt !== -1) updateMagnifier(p.quad[dragPt].x, p.quad[dragPt].y);
     }
@@ -1366,11 +1441,9 @@
       showToast('PDF Downloaded');
     };
 
-    $('fileInput').onchange = e => handleFiles(e.target.files);
     $('cropBtn').onclick = toggleCropMode;
     $('autoCropBtn').onclick = autoCrop;
     $('stencilBtn').onclick = toggleStencilMode;
-
   </script>
 </body>
 </html>
