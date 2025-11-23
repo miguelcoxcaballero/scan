@@ -47,7 +47,7 @@
       --shadow-color: rgba(0,0,0,0.6);
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+    * { box-sizing: border-box; margin: 0; padding: 0; outline: none; -webkit-tap-highlight-color: transparent; }
     
     body {
       height: 100vh;
@@ -82,6 +82,7 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       background: var(--surface-3);
       transition: opacity 0.5s var(--ease-spring), transform 0.5s var(--ease-spring);
+      padding: 24px;
     }
     
     .hero-content {
@@ -123,11 +124,12 @@
       position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 600;
       display: none; align-items: center; justify-content: center;
       backdrop-filter: blur(4px); opacity: 0; transition: opacity 0.3s;
+      padding: 16px;
     }
     #modalOverlay.open { display: flex; opacity: 1; }
     
     .modal-card {
-      background: var(--surface-1); width: 400px; padding: 24px; border-radius: 28px;
+      background: var(--surface-1); width: 100%; max-width: 400px; padding: 24px; border-radius: 28px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.2);
       transform: scale(0.9); opacity: 0; transition: 0.3s var(--ease-spring);
       display: flex; flex-direction: column; gap: 24px;
@@ -181,7 +183,7 @@
 
     #toolbar {
       height: 64px; display: flex; align-items: center; justify-content: space-between; 
-      padding: 0 8px; margin-bottom: 8px;
+      padding: 0 8px; margin-bottom: 8px; flex-shrink: 0;
     }
 
     .doc-title {
@@ -206,7 +208,7 @@
       height: 36px; padding: 0 16px; border-radius: 18px; 
       border: 1px solid var(--outline); background: transparent; color: var(--text-main);
       display: flex; align-items: center; gap: 8px; font-family: 'Google Sans', sans-serif; font-size: 13px; font-weight: 500;
-      cursor: pointer; transition: 0.2s;
+      cursor: pointer; transition: 0.2s; white-space: nowrap;
     }
     .btn-chip:hover { background: var(--surface-1); }
     .btn-chip.active { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); border-color: transparent; }
@@ -220,6 +222,7 @@
       border-radius: 16px;
       position: relative;
       overflow: hidden;
+      min-height: 0; /* Important for flex nesting */
     }
 
     #paper {
@@ -238,7 +241,7 @@
       position: absolute; inset: 0; width: 100%; height: 100%;
       pointer-events: none;
     }
-    #cropLayer { cursor: crosshair; pointer-events: auto; display: none; }
+    #cropLayer { cursor: crosshair; pointer-events: auto; display: none; touch-action: none; }
     
     #stencilLayer { display: block; z-index: 10; } 
 
@@ -281,7 +284,7 @@
       position: relative; display: flex; align-items: center; justify-content: center; gap: 12px;
       height: 56px; border-radius: 16px; background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container); font-family: 'Google Sans', sans-serif; font-weight: 500;
-      cursor: pointer; transition: 0.2s; overflow: hidden;
+      cursor: pointer; transition: 0.2s; overflow: hidden; flex-shrink: 0;
     }
     .fab-add:hover { filter: brightness(1.08); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
     
@@ -320,6 +323,7 @@
     .bottom-controls {
       padding-top: 16px;
       border-top: 1px solid var(--outline);
+      flex-shrink: 0;
     }
     .btn-main {
       width: 100%; 
@@ -337,6 +341,65 @@
       font-size: 14px; opacity: 0; transition: 0.3s cubic-bezier(0.2,0,0,1); pointer-events: none; z-index: 100;
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* --- MOBILE RESPONSIVE STYLES --- */
+    @media (max-width: 768px) {
+      body { padding: 0; }
+      
+      #appContainer {
+        flex-direction: column;
+        padding: 0;
+        gap: 0;
+      }
+      
+      #mainPanel {
+        border-radius: 0;
+        flex: 1; /* Take all available height first */
+      }
+      
+      #sidebar {
+        width: 100%;
+        height: auto;
+        max-height: 260px; /* Limit height of bottom drawer */
+        border-radius: 24px 24px 0 0;
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+        z-index: 50;
+        padding: 16px;
+        flex-shrink: 0;
+        gap: 12px;
+      }
+
+      /* Horizontal Scrolling List for Mobile */
+      #pageList {
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 4px;
+        gap: 12px;
+      }
+      
+      #pageList::-webkit-scrollbar { height: 4px; width: auto; }
+
+      .page-card {
+        min-width: 200px; /* Wider for better touch targets */
+        border: 1px solid var(--outline-variant);
+      }
+
+      /* Adjust Toolbar */
+      #toolbar { padding: 0 12px; height: 56px; }
+      .doc-title { width: 120px; font-size: 16px; padding: 4px 8px; }
+      .btn-chip { padding: 0 12px; }
+      .btn-chip span { font-size: 18px; margin-right: 0; }
+      /* Hide text labels in chips on very small screens if needed, 
+         but for now flexbox should handle it */
+      
+      /* Hide Brand in sidebar to save space */
+      #sidebar .brand { display: none; }
+      
+      /* Landing Page Adjustments */
+      .hero-title { font-size: 36px; }
+      .hero-icon { font-size: 48px; }
+    }
 
   </style>
 </head>
@@ -394,15 +457,15 @@
           <div style="width:1px; height:20px; background:var(--outline); opacity:0.3;"></div>
           
           <button class="btn-chip" id="autoCropBtn" style="display:none">
-            <span class="material-symbols-rounded">auto_fix</span> Auto
+            <span class="material-symbols-rounded">auto_fix</span> <span style="display:none">Auto</span>
           </button>
 
           <button class="btn-chip" id="cropBtn" disabled>
-            <span class="material-symbols-rounded">crop</span> Crop
+            <span class="material-symbols-rounded">crop</span>
           </button>
 
           <button class="btn-chip" id="stencilBtn" disabled>
-            <span class="material-symbols-rounded">grid_4x4</span> Stencil
+            <span class="material-symbols-rounded">grid_4x4</span>
           </button>
         </div>
       </div>
@@ -498,13 +561,10 @@
 
     const $ = id => document.getElementById(id);
     const els = {
-      // New Elements
       landing: $('landingPage'),
       modal: $('modalOverlay'),
       app: $('appContainer'),
       nameInput: $('scanNameInput'),
-      
-      // Existing
       paper: $('paper'),
       img: $('previewImg'),
       canvas: $('cropLayer'),
@@ -534,6 +594,7 @@
         
         new Sortable(els.list, {
           animation: 150, ghostClass: 'sortable-ghost',
+          direction: window.innerWidth <= 768 ? 'horizontal' : 'vertical', // Adaptive direction
           onEnd: (evt) => {
             const item = STATE.pages.splice(evt.oldIndex, 1)[0];
             STATE.pages.splice(evt.newIndex, 0, item);
@@ -552,19 +613,16 @@
 
     /* --- NAVIGATION / APP FLOW --- */
     
-    // 1. Landing -> Modal
     $('btnLandingStart').onclick = () => {
       els.modal.classList.add('open');
       els.nameInput.value = '';
       els.nameInput.focus();
     };
 
-    // 2. Modal Cancel
     $('btnModalCancel').onclick = () => {
       els.modal.classList.remove('open');
     };
 
-    // 3. Modal Create -> Main App
     $('btnModalCreate').onclick = enterMainApp;
     els.nameInput.addEventListener('keypress', (e) => {
       if(e.key === 'Enter') enterMainApp();
@@ -573,25 +631,16 @@
     function enterMainApp() {
       const name = els.nameInput.value.trim() || "Untitled Scan";
       $('docTitle').value = name;
-      
-      // Close Modal
       els.modal.classList.remove('open');
-      
-      // Animate Landing Out
       els.landing.style.opacity = '0';
       els.landing.style.transform = 'scale(1.1)';
       els.landing.style.pointerEvents = 'none';
-
-      // Animate App In
       els.app.classList.remove('hidden');
-      // Small delay to allow display:block to apply before opacity transition
-      setTimeout(() => {
-        els.app.classList.add('active');
-      }, 50);
+      setTimeout(() => { els.app.classList.add('active'); }, 50);
     }
 
 
-    /* --- EXISTING LOGIC (Unchanged functionality) --- */
+    /* --- EXISTING LOGIC --- */
 
     async function handleFiles(files) {
       if(!STATE.cvReady || !files.length) return;
@@ -605,11 +654,9 @@
         c.getContext('2d').drawImage(img,0,0);
         
         const pageQuad = detectCorners(c);
-        
         const warpResult = smartWarp(c, pageQuad);
         let alignedCanvas = warpResult.canvas;
         const usedYellow = warpResult.usedYellow;
-
         const scanResult = scanForColors(alignedCanvas);
         let markerCenter = null;
 
@@ -647,7 +694,6 @@
 
     function smartWarp(srcCanvas, pageQuad) {
         const yellowQuad = detectYellowRect(srcCanvas);
-        
         if (yellowQuad) {
             console.log("Yellow Box Detected! Warping to Stencil coords.");
             const dstStencil = [
@@ -656,18 +702,11 @@
                 STENCIL_CFG.x + STENCIL_CFG.w, STENCIL_CFG.y + STENCIL_CFG.h,
                 STENCIL_CFG.x, STENCIL_CFG.y + STENCIL_CFG.h
             ];
-            
-            return {
-                canvas: warpGeneral(srcCanvas, yellowQuad, dstStencil),
-                usedYellow: true
-            };
+            return { canvas: warpGeneral(srcCanvas, yellowQuad, dstStencil), usedYellow: true };
         } else {
             console.log("Yellow Box not found. Falling back to Page corners.");
             const dstA4 = [0,0, A4_W,0, A4_W,A4_H, 0,A4_H];
-            return {
-                canvas: warpGeneral(srcCanvas, pageQuad, dstA4),
-                usedYellow: false
-            };
+            return { canvas: warpGeneral(srcCanvas, pageQuad, dstA4), usedYellow: false };
         }
     }
 
@@ -683,7 +722,6 @@
         let high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [40, 255, 255, 255]);
         
         cv.inRange(hsv, low, high, mask);
-        
         let M = cv.Mat.ones(5, 5, cv.CV_8U);
         cv.morphologyEx(mask, mask, cv.MORPH_OPEN, M);
         
@@ -701,7 +739,6 @@
                 let peri = cv.arcLength(cnt, true);
                 let approx = new cv.Mat();
                 cv.approxPolyDP(cnt, approx, 0.04 * peri, true);
-                
                 if(approx.rows === 4 && cv.isContourConvex(approx)) {
                     maxArea = area;
                     best = [];
@@ -712,7 +749,6 @@
                 approx.delete();
             }
         }
-        
         src.delete(); srcRGB.delete(); hsv.delete(); mask.delete(); low.delete(); high.delete(); M.delete(); contours.delete();
         return best ? orderQuad(best) : null;
     }
@@ -720,17 +756,13 @@
     function warpGeneral(srcCanvas, srcQuad, dstCoordsArray) {
         let src = cv.imread(srcCanvas);
         let dst = new cv.Mat();
-        
         let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, srcQuad.flatMap(q=>[q.x,q.y]));
         let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, dstCoordsArray);
-        
         let M = cv.getPerspectiveTransform(srcTri, dstTri);
         cv.warpPerspective(src, dst, M, new cv.Size(A4_W, A4_H), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar(255,255,255,255));
-        
         let out = document.createElement('canvas');
         out.width = A4_W; out.height = A4_H;
         cv.imshow(out, dst);
-        
         src.delete(); dst.delete(); srcTri.delete(); dstTri.delete(); M.delete();
         return out;
     }
@@ -738,22 +770,17 @@
     function selectPage(idx) {
       if(idx < 0 || idx >= STATE.pages.length) return;
       if(STATE.isCropMode) toggleCropMode();
-      
       STATE.currentIdx = idx;
       renderList();
-      
       const p = STATE.pages[idx];
       els.paper.style.display = 'block';
       els.img.src = p.displayUrl;
       els.img.style.display = 'block';
-      
       els.canvas.style.display = 'none';
       $('cropBtn').disabled = false;
       $('stencilBtn').disabled = false;
-
       if(STATE.isStencilMode) $('stencilBtn').classList.add('active');
       else $('stencilBtn').classList.remove('active');
-      
       drawOverlay(stx, p.processed.width, p.processed.height);
       updateViewGeometry();
     }
@@ -764,24 +791,18 @@
       const sourceW = STATE.isCropMode ? p.src.width : p.processed.width;
       const sourceH = STATE.isCropMode ? p.src.height : p.processed.height;
       const aspect = sourceW / sourceH;
-
       const pad = 40;
       const availW = els.viewport.clientWidth - pad;
       const availH = els.viewport.clientHeight - pad;
-
       if(availW <= 0) return;
-
       let finalW = availW;
       let finalH = availW / aspect;
-
       if(finalH > availH) {
         finalH = availH;
         finalW = availH * aspect;
       }
-
       els.paper.style.width = `${finalW}px`;
       els.paper.style.height = `${finalH}px`;
-
       if(STATE.isCropMode) drawCropCanvas();
       if(!STATE.isCropMode) drawOverlay(stx, p.processed.width, p.processed.height);
     }
@@ -795,37 +816,30 @@
       const p = STATE.pages[STATE.currentIdx];
 
       if(STATE.isCropMode) {
-        btn.innerHTML = '<span class="material-symbols-rounded">check</span> Done';
+        btn.innerHTML = '<span class="material-symbols-rounded">check</span>';
         btn.classList.add('active');
         autoBtn.style.display = 'flex';
         stencilBtn.style.display = 'none'; 
-        
         els.img.style.display = 'none';
         els.stencil.style.display = 'none'; 
-        
         els.canvas.style.display = 'block';
         els.canvas.width = p.src.width;
         els.canvas.height = p.src.height;
         drawCropCanvas();
       } else {
-        btn.innerHTML = '<span class="material-symbols-rounded">crop</span> Crop';
+        btn.innerHTML = '<span class="material-symbols-rounded">crop</span>';
         btn.classList.remove('active');
-        
         autoBtn.style.display = 'none';
         stencilBtn.style.display = 'flex';
         els.stencil.style.display = 'block';
-        
         showToast('Applying...');
         setTimeout(async () => {
           const dstA4 = [0,0, A4_W,0, A4_W,A4_H, 0,A4_H];
           let intermediateCanvas = warpGeneral(p.src, p.quad, dstA4);
-          
           const yellowQuad = detectYellowRect(intermediateCanvas);
           let alignedCanvas = intermediateCanvas;
           let usedYellow = false;
-
           if (yellowQuad) {
-             console.log("Found Yellow Box in manual crop. Re-scaling.");
              const dstStencil = [
                 STENCIL_CFG.x, STENCIL_CFG.y, 
                 STENCIL_CFG.x + STENCIL_CFG.w, STENCIL_CFG.y,
@@ -835,7 +849,6 @@
              alignedCanvas = warpGeneral(intermediateCanvas, yellowQuad, dstStencil);
              usedYellow = true;
           }
-
           const scanResult = scanForColors(alignedCanvas);
           if(!usedYellow && scanResult.found && scanResult.blackPt) {
                const rawCenter = findBlackBlobCentroid(alignedCanvas, scanResult.blackPt);
@@ -844,15 +857,12 @@
           } else {
                p.marker = usedYellow ? { x: MARKER_TARGET.x, y: MARKER_TARGET.y } : null;
           }
-
           const T = buildColorTransform();
           const processed = (T) ? applyRecolor(alignedCanvas, T) : alignedCanvas;
-          
           p.processed = processed;
           p.displayUrl = await canvasToUrl(processed);
           p.thumbUrl = await canvasToUrl(resizeCanvas(processed, 60));
           p.yellowUsed = usedYellow; 
-
           selectPage(STATE.currentIdx);
           renderList();
         }, 10);
@@ -865,29 +875,23 @@
         STATE.isStencilMode = !STATE.isStencilMode;
         const btn = $('stencilBtn');
         const p = STATE.pages[STATE.currentIdx];
-        
         if(STATE.isStencilMode) btn.classList.add('active');
         else btn.classList.remove('active');
-        
         drawOverlay(stx, p.processed.width, p.processed.height);
     }
 
     function alignToMarker(srcCanvas, currentXY) {
         const targetX = MARKER_TARGET.x;
         const targetY = MARKER_TARGET.y;
-
         const diffX = targetX - currentXY.x;
         const diffY = targetY - currentXY.y;
-
         const out = document.createElement('canvas');
         out.width = A4_W;
         out.height = A4_H;
         const ctx = out.getContext('2d');
-
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, A4_W, A4_H);
         ctx.drawImage(srcCanvas, diffX, diffY);
-
         return out;
     }
 
@@ -912,23 +916,18 @@
     function _renderOverlayContent(ctx, w, h) {
         const scaleX = w / A4_W;
         const scaleY = h / A4_H;
-
         if (STATE.isStencilMode) {
             const sX = STENCIL_CFG.x * scaleX;
             const sY = STENCIL_CFG.y * scaleY;
             const sW = STENCIL_CFG.w * scaleX;
             const sH = STENCIL_CFG.h * scaleY;
-            
             const lineWidth = 8 * scaleX; 
             const gapPx = (STENCIL_CFG.gapMM / 10) * PX_PER_CM * scaleX;
             const holeOffset = (lineWidth / 2) + gapPx;
-
             ctx.fillStyle = STENCIL_CFG.bgColor;
             ctx.fillRect(0, 0, w, h);
-            
             ctx.globalCompositeOperation = 'destination-out';
             ctx.fillRect(sX + holeOffset, sY + holeOffset, sW - (holeOffset * 2), sH - (holeOffset * 2));
-            
             ctx.globalCompositeOperation = 'source-over';
             ctx.strokeStyle = STENCIL_CFG.borderColor;
             ctx.lineWidth = lineWidth; 
@@ -941,18 +940,15 @@
       const {x1,y1,x2,y2} = defaultColorWindow;
       const w=x2-x1, h=y2-y1;
       if(w <= 0 || h <= 0) return { found: false, blackPt: null };
-      
       const data = ctx.getImageData(x1,y1,w,h).data;
       const nearest = {};
       colorKeys.forEach(k => nearest[k]={dist:Infinity, rgb:null, xy:null});
-      
       for(let i=0; i<data.length; i+=12) { 
         const r=data[i], g=data[i+1], b=data[i+2];
         const lx = (i/4) % w;
         const ly = Math.floor((i/4) / w);
         const gx = x1 + lx;
         const gy = y1 + ly;
-
         colorKeys.forEach(k => {
           const ideal = windowAnchors[k];
           const dist = (r-ideal[0])**2 + (g-ideal[1])**2 + (b-ideal[2])**2;
@@ -961,19 +957,9 @@
           }
         });
       }
-      
       let cnt=0;
-      colorKeys.forEach(k => { 
-          if(nearest[k].rgb){ 
-             calibration[k].src=nearest[k].rgb; 
-             cnt++; 
-          }
-      });
-      
-      return { 
-          found: cnt===5, 
-          blackPt: nearest['black'] ? nearest['black'].xy : null 
-      };
+      colorKeys.forEach(k => { if(nearest[k].rgb){ calibration[k].src=nearest[k].rgb; cnt++; } });
+      return { found: cnt===5, blackPt: nearest['black'] ? nearest['black'].xy : null };
     }
 
     function findBlackBlobCentroid(canvas, seed) {
@@ -985,21 +971,16 @@
         const data = imageData.data;
         const startX = Math.round(seed.x - x1);
         const startY = Math.round(seed.y - y1);
-
         if(startX < 0 || startX >= w || startY < 0 || startY >= h) return seed;
-
         const stack = [[startX, startY]];
         const visited = new Uint8Array(w * h); 
         const IS_BLACK = (idx) => (data[idx] + data[idx+1] + data[idx+2]) < 150;
         const startIdx = (startY * w + startX);
         visited[startIdx] = 1;
-
         let sumX = 0, sumY = 0, count = 0;
-
         while(stack.length > 0) {
             const [cx, cy] = stack.pop();
             sumX += cx; sumY += cy; count++;
-
             const neighbors = [[cx+1, cy], [cx-1, cy], [cx, cy+1], [cx, cy-1]];
             for(let i=0; i<neighbors.length; i++) {
                 const nx = neighbors[i][0];
@@ -1047,18 +1028,15 @@
       });
       ctx.closePath();
       ctx.fill('evenodd');
-      
       const styles = getComputedStyle(document.body);
       const colPrim = styles.getPropertyValue('--md-sys-color-primary').trim();
       const colCont = styles.getPropertyValue('--md-sys-color-primary-container').trim();
-
       ctx.strokeStyle = colPrim;
       ctx.lineWidth = Math.max(2, w/300);
       ctx.beginPath();
       p.quad.forEach((pt,i) => i===0 ? ctx.moveTo(pt.x,pt.y) : ctx.lineTo(pt.x,pt.y));
       ctx.closePath();
       ctx.stroke();
-
       const rad = Math.max(5, w/100);
       p.quad.forEach(pt => {
         ctx.beginPath();
@@ -1094,7 +1072,12 @@
       const scaleY = rect.height / els.canvas.height;
       const screenX = rect.left + (x * scaleX);
       const screenY = rect.top + (y * scaleY);
-      const yOffset = (screenY < 180) ? 80 : -80;
+      
+      // Smart Offset: Check if on mobile (screen width) or touch device
+      // If mobile, offset higher because thumb is larger than mouse pointer
+      const isMobile = window.innerWidth <= 768;
+      const yOffset = (screenY < 180) ? 80 : (isMobile ? -120 : -80);
+      
       els.magnifier.style.display = 'block';
       els.magnifier.style.left = `${screenX}px`;
       els.magnifier.style.top = `${screenY + yOffset}px`;
@@ -1252,39 +1235,65 @@
     }
 
     let dragPt = -1;
-    els.canvas.addEventListener('mousedown', e => {
+    
+    // --- MOUSE EVENTS ---
+    els.canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+    window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+    window.addEventListener('mouseup', handleEnd);
+
+    // --- TOUCH EVENTS ---
+    els.canvas.addEventListener('touchstart', e => {
+      e.preventDefault(); // Prevent scroll while cropping
+      handleStart(e.touches[0].clientX, e.touches[0].clientY);
+    }, {passive: false});
+
+    window.addEventListener('touchmove', e => {
+      if(dragPt !== -1) e.preventDefault();
+      handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    }, {passive: false});
+
+    window.addEventListener('touchend', handleEnd);
+
+
+    function handleStart(cx, cy) {
+      if(STATE.currentIdx < 0) return;
       const p = STATE.pages[STATE.currentIdx];
       const rect = els.canvas.getBoundingClientRect();
       const scaleX = els.canvas.width / rect.width;
       const scaleY = els.canvas.height / rect.height;
-      const x = (e.clientX - rect.left) * scaleX;
-      const y = (e.clientY - rect.top) * scaleY;
+      const x = (cx - rect.left) * scaleX;
+      const y = (cy - rect.top) * scaleY;
+      
       let min = Infinity;
       p.quad.forEach((pt, i) => {
         const d = Math.hypot(pt.x - x, pt.y - y);
         if(d < min) { min = d; dragPt = i; }
       });
-      if(min > (els.canvas.width * 0.05)) dragPt = -1;
+      // Larger hit area for touch (0.1 instead of 0.05)
+      const hitArea = els.canvas.width * (window.innerWidth <= 768 ? 0.1 : 0.05);
+      if(min > hitArea) dragPt = -1;
       if(dragPt !== -1) updateMagnifier(p.quad[dragPt].x, p.quad[dragPt].y);
-    });
-    window.addEventListener('mousemove', e => {
+    }
+
+    function handleMove(cx, cy) {
       if(dragPt === -1) return;
       const p = STATE.pages[STATE.currentIdx];
       const rect = els.canvas.getBoundingClientRect();
       const scaleX = els.canvas.width / rect.width;
       const scaleY = els.canvas.height / rect.height;
-      let x = (e.clientX - rect.left) * scaleX;
-      let y = (e.clientY - rect.top) * scaleY;
+      let x = (cx - rect.left) * scaleX;
+      let y = (cy - rect.top) * scaleY;
       x = Math.max(0, Math.min(els.canvas.width, x));
       y = Math.max(0, Math.min(els.canvas.height, y));
       p.quad[dragPt] = {x, y};
       requestAnimationFrame(drawCropCanvas);
       updateMagnifier(x, y);
-    });
-    window.addEventListener('mouseup', () => {
+    }
+
+    function handleEnd() {
       dragPt = -1;
       els.magnifier.style.display = 'none'; 
-    });
+    }
 
     function setTheme(mode) {
       STATE.theme = mode;
