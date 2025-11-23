@@ -30,8 +30,7 @@
       --shadow-color: rgba(0,0,0,0.08);
       --ease-spring: cubic-bezier(0.2, 0.0, 0, 1.0);
 
-      /* mobile layout constants (taller bottom sheet) */
-      --mobile-bottom-sheet-height: 220px;
+      --mobile-sheet-header-height: 64px;
     }
 
     /* --- DARK THEME --- */
@@ -60,13 +59,13 @@
     }
     
     body {
-      height: 100dvh;              /* dynamic viewport for mobile */
+      height: 100vh;
       width: 100vw;
       display: flex;
       background-color: var(--surface-3);
       color: var(--text-main);
       font-family: 'Roboto', sans-serif;
-      overflow: hidden;            /* overridden on mobile */
+      overflow: hidden;
       transition: background-color 0.3s ease;
     }
 
@@ -169,7 +168,7 @@
     #appContainer {
       flex: 1; display: flex; padding: 12px; gap: 16px;
       width: 100vw;
-      height: 100%;               /* fill body */
+      height: 100%;
       opacity: 0; transform: scale(0.98);
       transition: opacity 0.6s 0.2s, transform 0.6s 0.2s var(--ease-spring);
     }
@@ -233,6 +232,8 @@
       box-shadow: 0 4px 20px var(--shadow-color);
       position: relative;
       display: none;
+      transform-origin: center center;
+      transition: transform 0.05s linear;
     }
 
     #previewImg {
@@ -263,27 +264,69 @@
     }
     #magCanvas { width: 100%; height: 100%; display: block; }
 
-    /* --- RIGHT PANEL (SIDEBAR) --- */
+    /* --- RIGHT PANEL (SIDEBAR) DESKTOP --- */
     #sidebar {
       width: 340px; display: flex; flex-direction: column;
       background: var(--surface-1); border-radius: 16px;
-      padding: 20px 16px; gap: 20px; flex-shrink: 0;
+      padding: 20px 16px; gap: 16px; flex-shrink: 0;
       box-shadow: 0 4px 12px var(--shadow-color);
+      z-index: 10;
     }
 
-    .brand { display: flex; align-items: center; gap: 12px; padding: 0 8px; color: var(--text-main); }
-    .brand-icon { color: var(--md-sys-color-primary); font-size: 28px; }
-    .brand-name { font-family: 'Google Sans', sans-serif; font-size: 22px; }
+    .brand { 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between;
+      gap: 8px; 
+      padding: 0 4px; 
+      color: var(--text-main); 
+    }
+
+    .brand-main {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .brand-icon { color: var(--md-sys-color-primary); font-size: 28px; flex-shrink: 0; }
+    .brand-text { display: flex; flex-direction: column; min-width: 0; }
+    .brand-name { font-family: 'Google Sans', sans-serif; font-size: 20px; white-space: nowrap; }
+    .brand-pages { font-size: 11px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .sidebar-toggle {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 16px;
+      border: none;
+      background: transparent;
+      color: var(--text-sub);
+      cursor: pointer;
+    }
+    .sidebar-toggle:hover { background: rgba(0,0,0,0.04); }
 
     .fab-add {
       position: relative; display: flex; align-items: center; justify-content: center; gap: 12px;
       height: 56px; border-radius: 16px; background: var(--md-sys-color-primary-container);
       color: var(--md-sys-color-on-primary-container); font-family: 'Google Sans', sans-serif; font-weight: 500;
       cursor: pointer; transition: 0.2s; overflow: hidden; flex-shrink: 0;
+      font-size: 14px;
     }
     .fab-add:hover { filter: brightness(1.08); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
     
-    .list-header { font-size: 11px; font-weight: 600; color: var(--text-sub); padding: 0 8px; letter-spacing: 1px; }
+    #sidebarBody {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 0.32s var(--ease-spring), transform 0.32s var(--ease-spring);
+      will-change: opacity, transform;
+    }
     
     #pageList { 
       flex: 1; 
@@ -297,9 +340,22 @@
     #pageList::-webkit-scrollbar-thumb { background: var(--outline); border-radius: 4px; }
 
     .page-card {
-      display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 12px;
-      border: 1px solid transparent; cursor: pointer; transition: 0.2s; background: transparent;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      background: transparent;
       user-select: none;
+      position: relative;
+      will-change: transform;
+      transition:
+        transform 0.18s var(--ease-spring),
+        background 0.18s ease,
+        box-shadow 0.18s ease,
+        border-color 0.18s ease;
     }
     .page-card:hover { background: rgba(255,255,255,0.05); }
     .page-card.active { 
@@ -308,6 +364,30 @@
     }
     .page-card.active .page-meta { color: var(--md-sys-color-on-primary-container); opacity: 0.8; }
     .page-card.active .btn-del { color: var(--md-sys-color-on-primary-container); opacity: 0.7; }
+
+    /* --- SORTABLE VISUALS (MODIFIED FOR REALISTIC DRAG) --- */
+    
+    /* The list item placeholder (the empty spot) - Make invisible */
+    .sortable-ghost {
+      opacity: 0 !important;
+    }
+
+    /* The item following the finger/mouse - Make fully opaque and "lifted" */
+    .sortable-drag {
+      opacity: 1 !important;
+      background: var(--surface-1) !important;
+      box-shadow: 0 16px 32px rgba(0,0,0,0.3) !important;
+      transform: scale(1.05);
+      cursor: grabbing !important;
+      z-index: 9999 !important;
+      border-color: transparent !important;
+      transition: none !important; /* Ensure no lag when following finger */
+    }
+    
+    /* Standard hover state for sortable */
+    .sortable-chosen {
+      z-index: 1;
+    }
 
     .thumb {
       width: 48px; height: 64px; border-radius: 6px; background: #eee; object-fit: cover;
@@ -323,11 +403,16 @@
     .btn-del {
       width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent;
       color: var(--text-sub); cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s ease, color 0.15s ease;
     }
     .btn-del:hover { background: rgba(255,0,0,0.1); color: var(--md-sys-color-error); }
 
     .bottom-controls {
       padding-top: 16px; border-top: 1px solid var(--outline); flex-shrink: 0;
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 0.32s var(--ease-spring), transform 0.32s var(--ease-spring);
+      will-change: opacity, transform;
     }
     .btn-main {
       width: 100%; height: 48px; border-radius: 24px; border: none;
@@ -356,40 +441,40 @@
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    /* --- MOBILE: FLOATING ADD BUTTON --- */
+    /* --- FAB móvil (debajo del desplegable) --- */
     #btnAddMobile {
-      display: none; /* Hidden on desktop */
       position: fixed;
       right: 16px;
+      bottom: 24px;
       width: 56px;
       height: 56px;
-      border-radius: 999px;
+      border-radius: 16px;
+      border: none;
       background: var(--md-sys-color-primary);
       color: var(--md-sys-color-on-primary);
-      border: none;
       box-shadow: 0 6px 16px rgba(0,0,0,0.35);
-      z-index: 80;
+      display: none;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
+      z-index: 60; /* bottom-sheet is 80, will cover it when open */
+      transition: transform 0.18s var(--ease-spring), box-shadow 0.18s var(--ease-spring);
     }
-    #btnAddMobile:active { transform: scale(0.95); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
     #btnAddMobile span { font-size: 28px; }
+    #btnAddMobile:active { transform: scale(0.94); box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
 
-    /* --- MOBILE RESPONSIVE STYLES --- */
+    /* --- MOBILE: bottom-sheet & layout --- */
     @media (max-width: 768px) {
       body { 
-        padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); 
-        overflow-y: auto;             /* allow scroll so nothing is cropped */
+        padding: 0; 
+        height: 100vh;
       }
       
       #appContainer {
         flex-direction: column;
         padding: 0;
         gap: 0;
-        height: auto;
-        min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        height: 100%;
       }
       
       #mainPanel {
@@ -397,85 +482,118 @@
         flex: 1;
         margin-bottom: 0;
       }
+
+      /* Center preview relative to visible area (top bar + collapsed sheet) */
+      #viewport {
+        padding-bottom: calc(var(--mobile-sheet-header-height) + 16px);
+        box-sizing: border-box;
+      }
       
+      /* Bottom sheet sidebar, height-based open/collapsed */
       #sidebar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
         width: 100%;
-        height: auto;
-        min-height: var(--mobile-bottom-sheet-height);
         border-radius: 24px 24px 0 0;
-        box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
-        z-index: 50;
+        box-shadow: 0 -8px 24px rgba(0,0,0,0.35);
         padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-        flex-shrink: 0;
-        gap: 12px;
         background: var(--surface-1);
-      }
-
-      #sidebar .brand { display: false; }
-
-      /* Hide the big desktop "Add" button */
-      #sidebar .fab-add { display: none; }
-      
-      /* Floating FAB above the sheet & safe-area */
-      #btnAddMobile { 
+        max-height: 75vh;
         display: flex;
-        bottom: calc(var(--mobile-bottom-sheet-height) + env(safe-area-inset-bottom) + 16px);
+        flex-direction: column;
+        gap: 12px;
+        overflow: hidden;
+        transition: max-height 0.25s var(--ease-spring), padding-bottom 0.25s var(--ease-spring);
+        z-index: 80;
       }
 
-      /* Horizontal, roomy page strip */
-      #pageList {
-        flex-direction: row;
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding-bottom: 4px;
-        gap: 12px;
-        align-items: center;
+      /* Collapsed state: only header row visible */
+      #sidebar:not(.open) {
+        max-height: var(--mobile-sheet-header-height);
+        padding-bottom: env(safe-area-inset-bottom);
       }
-      
-      #pageList::-webkit-scrollbar { height: 4px; width: auto; }
+      #sidebar:not(.open) #sidebarBody,
+      #sidebar:not(.open) .bottom-controls {
+        opacity: 0;
+        transform: translateY(8px);
+        pointer-events: none;
+      }
+
+      #sidebar.open #sidebarBody,
+      #sidebar.open .bottom-controls {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+
+      .brand {
+        padding: 0 4px;
+      }
+      .brand-name {
+        font-size: 16px;
+      }
+
+      .sidebar-toggle {
+        display: flex;
+      }
+
+      /* Hide desktop add button on mobile */
+      .fab-add {
+        display: none;
+      }
+
+      #sidebarBody {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      #pageList {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        gap: 8px;
+        padding-bottom: 4px;
+      }
 
       .page-card {
-        min-width: 190px;
+        min-width: 0;
         border: 1px solid var(--outline-variant);
-        flex-shrink: 0;
       }
 
       .thumb {
-        width: 64px;
-        height: 90px;
-      }
-
-      .drag-handle {
-        font-size: 18px;
-        cursor: grab;
-      }
-
-      .filename {
-        font-size: 12px;
-      }
-
-      .page-meta {
-        font-size: 11px;
-        margin-top: 2px;
-      }
-
-      .btn-del {
-        width: 32px;
-        height: 32px;
+        width: 56px;
+        height: 80px;
       }
 
       /* Toolbar tweaks */
       #toolbar { padding: 0 8px; height: 56px; }
-      .doc-title { width: 150px; font-size: 16px; padding: 4px 8px; }
+      .doc-title { width: 160px; font-size: 16px; padding: 4px 8px; }
       .btn-chip { padding: 0 10px; height: 34px; }
       .btn-chip span.label-text { display: none; }
 
       .hero-title { font-size: 36px; }
       .hero-icon { font-size: 48px; }
 
-      /* Toast floats above sheet and FAB + safe-area */
+      /* FAB visible in mobile, just above collapsed sheet header */
+      #btnAddMobile {
+        display: flex;
+        bottom: calc(var(--mobile-sheet-header-height) + env(safe-area-inset-bottom) + 16px);
+      }
+
+      /* Toast above sheet header */
       #toast { 
-        bottom: calc(var(--mobile-bottom-sheet-height) + env(safe-area-inset-bottom) + 64px); 
+        bottom: calc(var(--mobile-sheet-header-height) + env(safe-area-inset-bottom) + 72px); 
+      }
+    }
+
+    @media (min-width: 769px) {
+      .sidebar-toggle {
+        display: none;
       }
     }
   </style>
@@ -520,11 +638,6 @@
       <canvas id="magCanvas"></canvas>
     </div>
 
-    <!-- Mobile floating FAB -->
-    <button id="btnAddMobile" aria-label="Add pages">
-      <span class="material-symbols-rounded">add</span>
-    </button>
-
     <input type="file" id="fileInput" accept="image/*" multiple hidden disabled>
 
     <div id="mainPanel">
@@ -566,18 +679,30 @@
       <div id="toast">Notification</div>
     </div>
 
+    <!-- FAB flotante sólo móvil (bajo el desplegable) -->
+    <button id="btnAddMobile" aria-label="Add pages">
+      <span class="material-symbols-rounded">add</span>
+    </button>
+
     <div id="sidebar">
       <div class="brand">
-        <span class="material-symbols-rounded brand-icon">document_scanner</span>
-        <span class="brand-name">Scanner</span>
+        <div class="brand-main">
+          <span class="material-symbols-rounded brand-icon">document_scanner</span>
+          <div class="brand-text">
+            <span class="brand-name">Scanner</span>
+            <span class="brand-pages" id="pageSummary">No pages</span>
+          </div>
+        </div>
+        <button id="sidebarToggle" class="sidebar-toggle" aria-expanded="false">
+          <span id="sidebarToggleIcon" class="material-symbols-rounded">expand_less</span>
+        </button>
       </div>
 
       <div class="fab-add" id="btnDesktopAdd">
         <span class="material-symbols-rounded">add</span> Add Pages
       </div>
 
-      <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
-        <div class="section-header list-header">PAGES</div>
+      <div id="sidebarBody">
         <div id="pageList"></div>
       </div>
 
@@ -651,22 +776,121 @@
       loading: $('appLoading'),
       magnifier: $('magnifier'),
       magCanvas: $('magCanvas'),
-      btnAddMobile: $('btnAddMobile'),
-      btnDesktopAdd: $('btnDesktopAdd')
+      sidebar: $('sidebar'),
+      pageSummary: $('pageSummary'),
+      sidebarToggle: $('sidebarToggle'),
+      sidebarToggleIcon: $('sidebarToggleIcon'),
+      btnDesktopAdd: $('btnDesktopAdd'),
+      btnAddMobile: $('btnAddMobile')
     };
     const ctx = els.canvas.getContext('2d');
     const stx = els.stencil.getContext('2d');
     const magCtx = els.magCanvas.getContext('2d');
 
+    /* --- ZOOM STATE FOR PREVIEW (pinch on mobile) --- */
+    const zoomState = {
+      scale: 1,
+      min: 1,
+      max: 3,
+      offsetX: 0,
+      offsetY: 0
+    };
+    let pinchStartDistance = 0;
+    let pinchStartScale = 1;
+    let panStartX = 0;
+    let panStartY = 0;
+    let isPanning = false;
+
+    function resetZoom() {
+      zoomState.scale = 1;
+      zoomState.offsetX = 0;
+      zoomState.offsetY = 0;
+      applyZoomTransform();
+    }
+
+    function applyZoomTransform() {
+      els.paper.style.transform = `translate(${zoomState.offsetX}px, ${zoomState.offsetY}px) scale(${zoomState.scale})`;
+    }
+
+    function getDistance(t1, t2) {
+      const dx = t1.clientX - t2.clientX;
+      const dy = t1.clientY - t2.clientY;
+      return Math.sqrt(dx*dx + dy*dy);
+    }
+
+    function handleZoomStart(e) {
+      if (STATE.isCropMode || STATE.currentIdx < 0) return;
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        pinchStartDistance = getDistance(e.touches[0], e.touches[1]);
+        pinchStartScale = zoomState.scale;
+        isPanning = false;
+      } else if (e.touches.length === 1 && zoomState.scale > 1) {
+        e.preventDefault();
+        isPanning = true;
+        panStartX = e.touches[0].clientX - zoomState.offsetX;
+        panStartY = e.touches[0].clientY - zoomState.offsetY;
+      }
+    }
+
+    function handleZoomMove(e) {
+      if (STATE.isCropMode || STATE.currentIdx < 0) return;
+      if (e.touches.length === 2 && pinchStartDistance > 0) {
+        e.preventDefault();
+        const newDist = getDistance(e.touches[0], e.touches[1]);
+        let newScale = pinchStartScale * (newDist / pinchStartDistance);
+        if (newScale < zoomState.min) newScale = zoomState.min;
+        if (newScale > zoomState.max) newScale = zoomState.max;
+        zoomState.scale = newScale;
+        applyZoomTransform();
+      } else if (e.touches.length === 1 && isPanning && zoomState.scale > 1) {
+        e.preventDefault();
+        const x = e.touches[0].clientX;
+        const y = e.touches[0].clientY;
+        zoomState.offsetX = x - panStartX;
+        zoomState.offsetY = y - panStartY;
+        applyZoomTransform();
+      }
+    }
+
+    function handleZoomEnd(e) {
+      if (e.touches.length < 2) {
+        pinchStartDistance = 0;
+      }
+      if (e.touches.length === 0) {
+        isPanning = false;
+      }
+      if (zoomState.scale <= 1.01) {
+        zoomState.scale = 1;
+        zoomState.offsetX = 0;
+        zoomState.offsetY = 0;
+        applyZoomTransform();
+      }
+    }
+
+    els.viewport.addEventListener('touchstart', handleZoomStart, {passive:false});
+    els.viewport.addEventListener('touchmove', handleZoomMove, {passive:false});
+    els.viewport.addEventListener('touchend', handleZoomEnd);
+    els.viewport.addEventListener('touchcancel', handleZoomEnd);
+
+    /* --- SORTABLE SETUP --- */
     let sortable = null;
 
     function setupSortable() {
+      if (!els.list) return;
       if (sortable) sortable.destroy();
       sortable = new Sortable(els.list, {
-        animation: 150,
+        animation: 220,
+        easing: 'cubic-bezier(0.2,0,0,1)',
         ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        dragClass: 'sortable-drag',
         handle: '.drag-handle',
-        direction: window.innerWidth <= 768 ? 'horizontal' : 'vertical',
+        direction: 'vertical',
+        swapThreshold: 0.5,
+        forceFallback: true,        // ensure visible drag clone everywhere
+        fallbackOnBody: true,
+        fallbackTolerance: 3,
         onEnd: (evt) => {
           const item = STATE.pages.splice(evt.oldIndex, 1)[0];
           STATE.pages.splice(evt.newIndex, 0, item);
@@ -678,11 +902,9 @@
       });
     }
 
-    // Resize: update Sortable direction + preview geometry
     window.addEventListener('resize', () => {
-      if (STATE.cvReady) {
-        setupSortable();
-        if (STATE.currentIdx >= 0) updateViewGeometry();
+      if (STATE.cvReady && STATE.currentIdx >= 0) {
+        updateViewGeometry();
       }
     });
 
@@ -704,6 +926,13 @@
         }).observe(els.viewport);
       }
     };
+
+    /* --- SIDEBAR TOGGLE (mobile bottom sheet) --- */
+    els.sidebarToggle.addEventListener('click', () => {
+      const isOpen = els.sidebar.classList.toggle('open');
+      els.sidebarToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      els.sidebarToggleIcon.textContent = isOpen ? 'expand_more' : 'expand_less';
+    });
 
     /* --- NAVIGATION / APP FLOW --- */
     
@@ -735,8 +964,8 @@
 
     /* --- FILE INPUT HANDLING --- */
     const triggerFile = () => els.fileIn.click();
-    els.btnAddMobile.onclick = triggerFile;
     els.btnDesktopAdd.onclick = triggerFile;
+    els.btnAddMobile.onclick = triggerFile;
     els.fileIn.onchange = e => handleFiles(e.target.files);
 
 
@@ -820,11 +1049,12 @@
         let high = new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [40, 255, 255, 255]);
         
         cv.inRange(hsv, low, high, mask);
-        let M = cv.Mat.ones(5, 5, cv.CV_8U);
-        cv.morphologyEx(mask, mask, cv.MORPH_OPEN, M);
-        
+        let M = new cv.Mat();
+        let kernel = cv.Mat.ones(5, 5, cv.CV_8U);
+        cv.morphologyEx(mask, mask, cv.MORPH_OPEN, kernel);
+
         let contours = new cv.MatVector();
-        cv.findContours(mask, contours, new cv.Mat(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+        cv.findContours(mask, contours, M, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
         
         let best = null;
         let maxArea = 0;
@@ -847,7 +1077,7 @@
                 approx.delete();
             }
         }
-        src.delete(); srcRGB.delete(); hsv.delete(); mask.delete(); low.delete(); high.delete(); M.delete(); contours.delete();
+        src.delete(); srcRGB.delete(); hsv.delete(); mask.delete(); kernel.delete(); contours.delete(); M.delete();
         return best ? orderQuad(best) : null;
     }
 
@@ -881,6 +1111,7 @@
       else $('stencilBtn').classList.remove('active');
       drawOverlay(stx, p.processed.width, p.processed.height);
       updateViewGeometry();
+      resetZoom();
     }
 
     function updateViewGeometry() {
@@ -903,6 +1134,7 @@
       els.paper.style.height = `${finalH}px`;
       if(STATE.isCropMode) drawCropCanvas();
       if(!STATE.isCropMode) drawOverlay(stx, p.processed.width, p.processed.height);
+      resetZoom();
     }
 
     function toggleCropMode() {
@@ -1077,22 +1309,22 @@
         visited[startIdx] = 1;
         let sumX = 0, sumY = 0, count = 0;
         while(stack.length > 0) {
-            const [cx, cy] = stack.pop();
-            sumX += cx; sumY += cy; count++;
-            const neighbors = [[cx+1, cy], [cx-1, cy], [cx, cy+1], [cx, cy-1]];
-            for(let i=0; i<neighbors.length; i++) {
-                const nx = neighbors[i][0];
-                const ny = neighbors[i][1];
-                if(nx >= 0 && nx < w && ny >= 0 && ny < h) {
-                    const nIdx = (ny * w + nx);
-                    if(visited[nIdx] === 0) {
-                        if(IS_BLACK(nIdx * 4)) {
-                            visited[nIdx] = 1;
-                            stack.push([nx, ny]);
-                        }
-                    }
-                }
-            }
+           const [cx, cy] = stack.pop();
+           sumX += cx; sumY += cy; count++;
+           const neighbors = [[cx+1, cy], [cx-1, cy], [cx, cy+1], [cx, cy-1]];
+           for(let i=0; i<neighbors.length; i++) {
+             const nx = neighbors[i][0];
+             const ny = neighbors[i][1];
+             if(nx >= 0 && nx < w && ny >= 0 && ny < h) {
+               const nIdx = (ny * w + nx);
+               if(visited[nIdx] === 0) {
+                 if(IS_BLACK(nIdx * 4)) {
+                   visited[nIdx] = 1;
+                   stack.push([nx, ny]);
+                 }
+               }
+             }
+           }
         }
         if(count === 0) return seed;
         return { x: (sumX / count) + x1, y: (sumY / count) + y1 };
@@ -1290,7 +1522,14 @@
 
     function renderList() {
       els.list.innerHTML = '';
-      if(!STATE.pages.length) {
+      const count = STATE.pages.length;
+      if (els.pageSummary) {
+        els.pageSummary.textContent = count
+          ? (count === 1 ? '1 page' : count + ' pages')
+          : 'No pages';
+      }
+
+      if(!count) {
         els.list.innerHTML = `<div id="msgEmpty" style="width:100%; text-align:center; padding:20px; color:var(--text-sub); font-size:13px;">No pages</div>`;
         return;
       }
@@ -1321,8 +1560,9 @@
               $('stencilBtn').disabled = true;
               $('stencilBtn').classList.remove('active');
               STATE.isStencilMode = false;
+              resetZoom();
             } else {
-              STATE.currentIdx = Math.max(0, STATE.currentIdx - 1);
+              STATE.currentIdx = Math.max(0, Math.min(STATE.currentIdx, STATE.pages.length - 1));
               selectPage(STATE.currentIdx);
             }
             renderList();
@@ -1334,12 +1574,12 @@
 
     let dragPt = -1;
     
-    // --- MOUSE EVENTS ---
+    // --- MOUSE EVENTS FOR CROP ---
     els.canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
     window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
     window.addEventListener('mouseup', handleEnd);
 
-    // --- TOUCH EVENTS ---
+    // --- TOUCH EVENTS FOR CROP ---
     els.canvas.addEventListener('touchstart', e => {
       e.preventDefault();
       handleStart(e.touches[0].clientX, e.touches[0].clientY);
