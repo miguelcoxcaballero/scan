@@ -493,11 +493,11 @@
         box-shadow: 0 -8px 24px rgba(0,0,0,0.35);
         
         /* 
-           CRITICAL FIX for Android:
-           1. Use a generous bottom padding that includes the safe-area.
-           2. Add EXTRA pixels (50px) to force the button up above the gesture bar.
+           MASSIVE PADDING FIX:
+           Changed from 50px to 120px extra space below content.
+           This guarantees the button sits well above any Android navigation bar.
         */
-        padding: 40px 24px calc(50px + env(safe-area-inset-bottom));
+        padding: 40px 24px calc(120px + env(safe-area-inset-bottom));
         
         background: var(--surface-1);
         
