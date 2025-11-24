@@ -30,10 +30,9 @@
       --shadow-color: rgba(0,0,0,0.08);
       --ease-spring: cubic-bezier(0.2, 0.0, 0, 1.0);
       
-      /* SMOOTH ANIMATION BEZIER */
       --ease-slide: cubic-bezier(0.2, 0.8, 0.2, 1); 
 
-      /* HEIGHT FOR HIDDEN MENU (Visible part) */
+      /* The visible height of the "hidden" menu */
       --mobile-sheet-header-height: 160px;
     }
 
@@ -493,15 +492,19 @@
         border-radius: 24px 24px 0 0;
         box-shadow: 0 -8px 24px rgba(0,0,0,0.35);
         
-        /* BUG FIX: Massive bottom padding allows button to float above Android gesture bar */
-        padding: 40px 24px calc(48px + env(safe-area-inset-bottom));
+        /* 
+           CRITICAL FIX for Android:
+           1. Use a generous bottom padding that includes the safe-area.
+           2. Add EXTRA pixels (50px) to force the button up above the gesture bar.
+        */
+        padding: 40px 24px calc(50px + env(safe-area-inset-bottom));
+        
         background: var(--surface-1);
         
-        /* BUG FIX: Use 70dvh (Dynamic Viewport) to avoid browser bar clipping */
-        height: 70dvh; 
-        max-height: none;
+        /* Fixed height ensures flexbox children behave predictably */
+        height: 75vh;
         
-        /* Hidden state pushes it down, leaving only header visible */
+        /* Push it down so only header is visible initially */
         transform: translateY(calc(100% - var(--mobile-sheet-header-height)));
         transition: transform 0.35s var(--ease-slide);
         
@@ -512,12 +515,12 @@
         will-change: transform;
       }
 
-      /* Open state: Slide up to 0 */
+      /* Open state: Slide up */
       #sidebar.open {
         transform: translateY(0);
       }
 
-      /* Logic for fading contents in/out */
+      /* Hide inner content when closed */
       #sidebar:not(.open) #sidebarBody,
       #sidebar:not(.open) .bottom-controls {
         opacity: 0;
@@ -525,6 +528,7 @@
         transform: translateY(20px);
       }
 
+      /* Show inner content when open */
       #sidebar.open #sidebarBody,
       #sidebar.open .bottom-controls {
         opacity: 1;
@@ -548,7 +552,6 @@
         display: flex;
       }
 
-      /* Hide desktop add button on mobile */
       .fab-add {
         display: none;
       }
@@ -579,7 +582,6 @@
         height: 80px;
       }
 
-      /* Toolbar tweaks */
       #toolbar { padding: 0 8px; height: 56px; }
       .doc-title { width: 160px; font-size: 16px; padding: 4px 8px; }
       .btn-chip { padding: 0 10px; height: 34px; }
@@ -588,13 +590,11 @@
       .hero-title { font-size: 36px; }
       .hero-icon { font-size: 48px; }
 
-      /* FAB visible in mobile, just above collapsed sheet header */
       #btnAddMobile {
         display: flex;
         bottom: calc(var(--mobile-sheet-header-height) + env(safe-area-inset-bottom) + 16px);
       }
 
-      /* Toast above sheet header */
       #toast { 
         bottom: calc(var(--mobile-sheet-header-height) + env(safe-area-inset-bottom) + 72px); 
       }
