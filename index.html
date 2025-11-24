@@ -33,7 +33,7 @@
       /* SMOOTH ANIMATION BEZIER */
       --ease-slide: cubic-bezier(0.2, 0.8, 0.2, 1); 
 
-      /* MASSIVE HEIGHT FOR HIDDEN MENU */
+      /* HEIGHT FOR HIDDEN MENU (Visible part) */
       --mobile-sheet-header-height: 160px;
     }
 
@@ -492,14 +492,16 @@
         width: 100%;
         border-radius: 24px 24px 0 0;
         box-shadow: 0 -8px 24px rgba(0,0,0,0.35);
-        /* Generous margin inside the handle area (40px top) */
-        padding: 40px 24px calc(24px + env(safe-area-inset-bottom));
+        
+        /* BUG FIX: Massive bottom padding allows button to float above Android gesture bar */
+        padding: 40px 24px calc(48px + env(safe-area-inset-bottom));
         background: var(--surface-1);
         
-        /* NEW ANIMATION STRATEGY: Fixed height + Transform (GPU) */
-        height: 85vh; 
+        /* BUG FIX: Use 70dvh (Dynamic Viewport) to avoid browser bar clipping */
+        height: 70dvh; 
         max-height: none;
-        /* Push sidebar down so only the header is visible */
+        
+        /* Hidden state pushes it down, leaving only header visible */
         transform: translateY(calc(100% - var(--mobile-sheet-header-height)));
         transition: transform 0.35s var(--ease-slide);
         
@@ -510,19 +512,17 @@
         will-change: transform;
       }
 
-      /* Collapsed state: logic handled by default transform above */
-      
+      /* Open state: Slide up to 0 */
+      #sidebar.open {
+        transform: translateY(0);
+      }
+
+      /* Logic for fading contents in/out */
       #sidebar:not(.open) #sidebarBody,
       #sidebar:not(.open) .bottom-controls {
         opacity: 0;
         pointer-events: none;
-        /* Small slide effect for inner content */
         transform: translateY(20px);
-      }
-
-      /* Open state: Slide up to 0 */
-      #sidebar.open {
-        transform: translateY(0);
       }
 
       #sidebar.open #sidebarBody,
@@ -533,13 +533,12 @@
       }
 
       .brand {
-        /* Remove internal padding, handled by sidebar container */
         padding: 0;
         cursor: pointer;
         user-select: none;
       }
       .brand-name {
-        font-size: 22px; /* Slightly larger for the big margin */
+        font-size: 22px;
       }
       .brand-icon {
         font-size: 32px;
