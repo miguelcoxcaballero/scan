@@ -29,8 +29,12 @@
       --grid-color: #e0e0e0;
       --shadow-color: rgba(0,0,0,0.08);
       --ease-spring: cubic-bezier(0.2, 0.0, 0, 1.0);
+      
+      /* SMOOTH ANIMATION BEZIER */
+      --ease-slide: cubic-bezier(0.2, 0.8, 0.2, 1); 
 
-      --mobile-sheet-header-height: 64px;
+      /* MASSIVE HEIGHT FOR HIDDEN MENU */
+      --mobile-sheet-header-height: 160px;
     }
 
     /* --- DARK THEME --- */
@@ -298,9 +302,9 @@
       display: none;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 32px;
-      border-radius: 16px;
+      width: 48px; 
+      height: 48px;
+      border-radius: 24px;
       border: none;
       background: transparent;
       color: var(--text-sub);
@@ -324,7 +328,7 @@
       overflow: hidden;
       opacity: 1;
       transform: translateY(0);
-      transition: opacity 0.32s var(--ease-spring), transform 0.32s var(--ease-spring);
+      transition: opacity 0.3s var(--ease-slide), transform 0.3s var(--ease-slide);
       will-change: opacity, transform;
     }
     
@@ -365,14 +369,8 @@
     .page-card.active .page-meta { color: var(--md-sys-color-on-primary-container); opacity: 0.8; }
     .page-card.active .btn-del { color: var(--md-sys-color-on-primary-container); opacity: 0.7; }
 
-    /* --- SORTABLE VISUALS (MODIFIED FOR REALISTIC DRAG) --- */
-    
-    /* The list item placeholder (the empty spot) - Make invisible */
-    .sortable-ghost {
-      opacity: 0 !important;
-    }
-
-    /* The item following the finger/mouse - Make fully opaque and "lifted" */
+    /* --- SORTABLE VISUALS --- */
+    .sortable-ghost { opacity: 0 !important; }
     .sortable-drag {
       opacity: 1 !important;
       background: var(--surface-1) !important;
@@ -381,13 +379,9 @@
       cursor: grabbing !important;
       z-index: 9999 !important;
       border-color: transparent !important;
-      transition: none !important; /* Ensure no lag when following finger */
+      transition: none !important;
     }
-    
-    /* Standard hover state for sortable */
-    .sortable-chosen {
-      z-index: 1;
-    }
+    .sortable-chosen { z-index: 1; }
 
     .thumb {
       width: 48px; height: 64px; border-radius: 6px; background: #eee; object-fit: cover;
@@ -411,7 +405,7 @@
       padding-top: 16px; border-top: 1px solid var(--outline); flex-shrink: 0;
       opacity: 1;
       transform: translateY(0);
-      transition: opacity 0.32s var(--ease-spring), transform 0.32s var(--ease-spring);
+      transition: opacity 0.3s var(--ease-slide), transform 0.3s var(--ease-slide);
       will-change: opacity, transform;
     }
     .btn-main {
@@ -489,7 +483,7 @@
         box-sizing: border-box;
       }
       
-      /* Bottom sheet sidebar, height-based open/collapsed */
+      /* Bottom sheet sidebar */
       #sidebar {
         position: fixed;
         left: 0;
@@ -498,27 +492,37 @@
         width: 100%;
         border-radius: 24px 24px 0 0;
         box-shadow: 0 -8px 24px rgba(0,0,0,0.35);
-        padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+        /* Generous margin inside the handle area (40px top) */
+        padding: 40px 24px calc(24px + env(safe-area-inset-bottom));
         background: var(--surface-1);
-        max-height: 75vh;
+        
+        /* NEW ANIMATION STRATEGY: Fixed height + Transform (GPU) */
+        height: 85vh; 
+        max-height: none;
+        /* Push sidebar down so only the header is visible */
+        transform: translateY(calc(100% - var(--mobile-sheet-header-height)));
+        transition: transform 0.35s var(--ease-slide);
+        
         display: flex;
         flex-direction: column;
-        gap: 12px;
-        overflow: hidden;
-        transition: max-height 0.25s var(--ease-spring), padding-bottom 0.25s var(--ease-spring);
+        gap: 24px;
         z-index: 80;
+        will-change: transform;
       }
 
-      /* Collapsed state: only header row visible */
-      #sidebar:not(.open) {
-        max-height: var(--mobile-sheet-header-height);
-        padding-bottom: env(safe-area-inset-bottom);
-      }
+      /* Collapsed state: logic handled by default transform above */
+      
       #sidebar:not(.open) #sidebarBody,
       #sidebar:not(.open) .bottom-controls {
         opacity: 0;
-        transform: translateY(8px);
         pointer-events: none;
+        /* Small slide effect for inner content */
+        transform: translateY(20px);
+      }
+
+      /* Open state: Slide up to 0 */
+      #sidebar.open {
+        transform: translateY(0);
       }
 
       #sidebar.open #sidebarBody,
@@ -529,10 +533,16 @@
       }
 
       .brand {
-        padding: 0 4px;
+        /* Remove internal padding, handled by sidebar container */
+        padding: 0;
+        cursor: pointer;
+        user-select: none;
       }
       .brand-name {
-        font-size: 16px;
+        font-size: 22px; /* Slightly larger for the big margin */
+      }
+      .brand-icon {
+        font-size: 32px;
       }
 
       .sidebar-toggle {
@@ -685,7 +695,8 @@
     </button>
 
     <div id="sidebar">
-      <div class="brand">
+      <!-- Brand section acts as click target to open sidebar on mobile -->
+      <div class="brand" id="mobileSidebarHeader">
         <div class="brand-main">
           <span class="material-symbols-rounded brand-icon">document_scanner</span>
           <div class="brand-text">
@@ -781,7 +792,8 @@
       sidebarToggle: $('sidebarToggle'),
       sidebarToggleIcon: $('sidebarToggleIcon'),
       btnDesktopAdd: $('btnDesktopAdd'),
-      btnAddMobile: $('btnAddMobile')
+      btnAddMobile: $('btnAddMobile'),
+      mobileSidebarHeader: $('mobileSidebarHeader')
     };
     const ctx = els.canvas.getContext('2d');
     const stx = els.stencil.getContext('2d');
@@ -928,10 +940,23 @@
     };
 
     /* --- SIDEBAR TOGGLE (mobile bottom sheet) --- */
-    els.sidebarToggle.addEventListener('click', () => {
+    function toggleSidebar() {
       const isOpen = els.sidebar.classList.toggle('open');
       els.sidebarToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
       els.sidebarToggleIcon.textContent = isOpen ? 'expand_more' : 'expand_less';
+    }
+
+    // Allow clicking the arrow button...
+    els.sidebarToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSidebar();
+    });
+
+    // ...AND allow clicking the entire header bar on mobile to unhide it easily
+    els.mobileSidebarHeader.addEventListener('click', () => {
+      if(window.innerWidth <= 768) {
+        toggleSidebar();
+      }
     });
 
     /* --- NAVIGATION / APP FLOW --- */
