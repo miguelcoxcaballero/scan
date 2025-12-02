@@ -8,26 +8,29 @@
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;700&family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
 
   <style>
     :root {
-      /* --- LIGHT THEME --- */
-      --md-sys-color-primary: #0b57d0;
+      /* --- LIGHT THEME (Copper Accent) --- */
+      --md-sys-color-primary: #d97736;
       --md-sys-color-on-primary: #ffffff;
-      --md-sys-color-primary-container: #d3e3fd;
-      --md-sys-color-on-primary-container: #041e49;
-      --md-sys-color-secondary-container: #c2e7ff;
-      --md-sys-color-on-secondary-container: #001d35;
+      --md-sys-color-primary-container: #ffdbca;
+      --md-sys-color-on-primary-container: #331200;
+      
+      /* Secondary is derived from copper/orange tones */
+      --md-sys-color-secondary-container: #ffeedd;
+      --md-sys-color-on-secondary-container: #2e1500;
+      
       --md-sys-color-error: #ba1a1a;
       --surface-1: #ffffff;
-      --surface-2: #f0f4f9;
-      --surface-3: #f8fafd;
-      --outline: #747775;
-      --outline-variant: #c4c7c5;
-      --text-main: #1f1f1f;
-      --text-sub: #444746;
+      --surface-2: #fff8f5; /* Slight warm tint */
+      --surface-3: #fcf6f3;
+      --outline: #85736b;
+      --outline-variant: #d7c2b9;
+      --text-main: #201a17;
+      --text-sub: #50453f;
       --grid-color: #e0e0e0;
       --shadow-color: rgba(0,0,0,0.08);
       --ease-spring: cubic-bezier(0.2, 0.0, 0, 1.0);
@@ -38,21 +41,23 @@
       --mobile-sheet-header-height: 160px;
     }
 
-    /* --- DARK THEME --- */
+    /* --- DARK THEME (Copper Accent) --- */
     body.dark-mode {
-      --md-sys-color-primary: #8AB4F8;
-      --md-sys-color-on-primary: #062e6f;
-      --md-sys-color-primary-container: #004A77;
-      --md-sys-color-on-primary-container: #C2E7FF;
-      --md-sys-color-secondary-container: #004a77;
-      --md-sys-color-on-secondary-container: #c2e7ff;
-      --surface-1: #1E1F20; 
-      --surface-2: #1E1F20; 
+      --md-sys-color-primary: #ffb784;
+      --md-sys-color-on-primary: #54260e;
+      --md-sys-color-primary-container: #753313;
+      --md-sys-color-on-primary-container: #ffdbca;
+      
+      --md-sys-color-secondary-container: #5c4032;
+      --md-sys-color-on-secondary-container: #ffdbca;
+      
+      --surface-1: #201a17; 
+      --surface-2: #201a17; 
       --surface-3: #131314; 
-      --outline: #8E918F;
-      --outline-variant: #444746;
-      --text-main: #E8EAED;
-      --text-sub: #9AA0A6;
+      --outline: #a08c84;
+      --outline-variant: #53433f;
+      --text-main: #ede0db;
+      --text-sub: #d0c4bf;
       --grid-color: #333;
       --shadow-color: rgba(0,0,0,0.6);
     }
@@ -74,6 +79,10 @@
       font-family: 'Roboto', sans-serif;
       overflow: hidden;
       transition: background-color 0.3s ease;
+    }
+
+    .font-logo {
+      font-family: 'Comfortaa', cursive;
     }
 
     .hidden { display: none !important; }
@@ -196,6 +205,57 @@
     .dropdown-item span {
       font-size: 20px;
       color: var(--md-sys-color-primary);
+    }
+
+    /* INHOUSE BRANDING BADGE */
+    .inhouse-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      opacity: 0.6;
+      transition: opacity 0.2s, color 0.2s;
+      text-decoration: none;
+      color: var(--text-sub);
+      user-select: none;
+      pointer-events: none; /* Just visual by default */
+    }
+    /* Only allow hover effect if it was clickable, but usually pure branding is static */
+    .inhouse-badge svg {
+      width: 28px;
+      height: 16px;
+      stroke-width: 6;
+      stroke: var(--md-sys-color-primary); /* UPDATED: Ensure copper color */
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .inhouse-badge span {
+      font-family: 'Comfortaa', cursive;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    /* REMOVED: .inhouse-badge .prefix style */
+
+    /* Landing Page Specific Positioning */
+    #landingPage .inhouse-badge {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    /* Sidebar Specific Positioning */
+    .sidebar-footer-brand {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--outline-variant);
+      display: flex;
+      justify-content: center;
+    }
+    .sidebar-footer-brand .inhouse-badge {
+      opacity: 0.5;
     }
 
     /* --- NAMING MODAL --- */
@@ -734,6 +794,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Inhouse Branding Footer -->
+    <div class="inhouse-badge">
+        <!-- REMOVED prefix -->
+        <svg viewBox="0 0 100 60">
+            <path d="M5 55 L50 10 L95 55" />
+        </svg>
+        <span>inhouse software</span>
+    </div>
   </div>
 
   <div id="modalOverlay">
@@ -829,6 +898,17 @@
         <button id="exportBtn" class="btn-main" disabled>
           <span class="material-symbols-rounded">picture_as_pdf</span> Export PDF
         </button>
+        
+        <!-- Sidebar Footer Inhouse Branding -->
+        <div class="sidebar-footer-brand">
+            <div class="inhouse-badge">
+                <!-- REMOVED prefix -->
+                <svg viewBox="0 0 100 60">
+                    <path d="M5 55 L50 10 L95 55" />
+                </svg>
+                <span>inhouse software</span>
+            </div>
+        </div>
       </div>
     </div>
   </div>
