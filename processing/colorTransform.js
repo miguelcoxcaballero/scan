@@ -77,8 +77,19 @@
     DARK_T3: cfg.DARK_PROCESSING.THRESHOLD_3,
     WHITE_THRESHOLD: cfg.WHITE_THRESHOLD,
     DESATURATION: cfg.DESATURATION,
-    TARGET_YELLOW: cfg.TARGET_YELLOW
+    TARGET_YELLOW: cfg.TARGET_YELLOW,
+    TARGET_RED_R: cfg.CALIBRATION_TARGETS.red[0],
+    TARGET_RED_G: cfg.CALIBRATION_TARGETS.red[1],
+    TARGET_RED_B: cfg.CALIBRATION_TARGETS.red[2],
+    TARGET_BLUE_R: cfg.CALIBRATION_TARGETS.blue[0],
+    TARGET_BLUE_G: cfg.CALIBRATION_TARGETS.blue[1],
+    TARGET_BLUE_B: cfg.CALIBRATION_TARGETS.blue[2]
   });
+
+  const PURIFY_SAT_MIN = 0.24;
+  const PURIFY_LUMA_MIN = 70;
+  const PURIFY_RED_GAP = 38;
+  const PURIFY_BLUE_GAP = 26;
 
   // Percentile from histogram to avoid sort allocations.
   const pctFromHist = (hist, total, p) => {
@@ -201,8 +212,20 @@
       oR > oB * cfg.ORIGRED_RED_TO_BLUE;
 
     const origYG = oG > ORIG_YG_GREEN_MIN && oG > oB * ORIG_YG_GREEN_BLUE_RATIO;
-    // Avoid pulling strong greens toward the yellow target.
+    // Avoid pulling greens toward the yellow target.
     const strongGreen = oG > oR * 1.3 && oG > oB * 1.6;
+    const greenProtect = oG > 80 && oG > oR * 1.15 && oG > oB * 1.25 &&
+      (oG - oR) > 18 && (oG - oB) > 18;
+    const blueMinBlue = Math.max(24, cfg.BLUE_MIN_BLUE - 10);
+    const blueMinDiff = Math.max(4, cfg.BLUE_MIN_DIFF - 6);
+    const blueRatio = Math.max(1.05, cfg.BLUE_RATIO - 0.12);
+    const blueLike = !origRed && !strongGreen &&
+      oB >= blueMinBlue &&
+      (oB - mxRG) >= blueMinDiff &&
+      oB / mxClamped >= blueRatio;
+    const blueSoft = !origRed && !strongGreen &&
+      oB >= 40 && (oB - oR) > 12 && (oB - oG) > 12;
+    const origBlueish = origBlue || blueLike || blueSoft;
 
     const minRG = oR < oG ? oR : oG;
     const rgDiff = Math.abs(oR - oG);
@@ -212,19 +235,25 @@
       rgClose &&
       oG > oR * cfg.YELLOW_GREEN_TO_RED_MIN &&
       oB < minRG * cfg.YELLOW_BLUE_RATIO_MAX;
-    if (strongGreen && isY) isY = false;
+    if ((strongGreen || greenProtect) && isY) isY = false;
 
     const mx = oR > oG ? (oR > oB ? oR : oB) : (oG > oB ? oG : oB);
     const mn = oR < oG ? (oR < oB ? oR : oB) : (oG < oB ? oG : oB);
     const sat = mx ? (mx - mn) / mx : 0;
     const isYStrong = isY && sat > 0.3 && minRG > 120;
-    const redEdge = !origBlue && !isYStrong &&
+    const yellowLike = !strongGreen && !greenProtect &&
+      minRG > 110 &&
+      rgDiff < Math.min(cfg.YELLOW_RG_DIFF_MAX + 6, 30) &&
+      oR > (cfg.YELLOW_MIN_RED - 5) &&
+      oG > (cfg.YELLOW_MIN_GREEN - 5) &&
+      oB < minRG * (cfg.YELLOW_BLUE_RATIO_MAX + 0.08);
+    const redEdge = origRed && !origBlue && !isYStrong &&
       r > 200 && r - g > 60 && r - b > 60;
 
     const origYellow = !skipYellow && edge && isYStrong;
     if (origYellow) return (255 << 16) | (222 << 8) | 0;
 
-    if (!origBlue) {
+    if (!origBlueish) {
       const minRGB = r < g ? (r < b ? r : b) : (g < b ? g : b);
       if (b > minRGB) b = minRGB;
 
@@ -283,8 +312,14 @@
       }
     }
 
-    const wasY = !skipYellow && !origRed && !origBlue && isYStrong;
-    const isR = r > 120 && r > g * 1.3 && r > b;
+    const wasY = !skipYellow && !origRed && !origBlueish && !greenProtect &&
+      (isYStrong || yellowLike);
+    if (wasY) {
+      r = TY.R; g = TY.G; b = TY.B;
+    }
+
+    const origRedish = origRed || (oR > oG * 1.1 && oR > oB * 1.1);
+    const isR = origRedish && r > 120 && r > g * 1.3 && r > b;
     const isRSoft = redEdge && r > g && r > b;
 
     if (isR || origRed || isRSoft) {
@@ -297,7 +332,7 @@
       r += grDiffR; g += grDiffG; b += grDiffB;
     }
 
-    if (origBlue) {
+    if (origBlueish) {
       const gr = r * GRAY_R + g * GRAY_G + b * GRAY_B;
       const ds = DS.BLUE_STRENGTH;
       const grDiffR = (gr - r) * ds;
@@ -311,7 +346,7 @@
       }
     }
 
-    if (!origBlue && !origRed && !origYG && !wasY && !isR && !isRSoft) {
+    if (!origBlueish && !origRed && !origYG && !wasY && !isR && !isRSoft) {
       const gr = r * GRAY_R + g * GRAY_G + b * GRAY_B;
       const ds = DS.NEUTRAL_STRENGTH;
       const grDiffR = (gr - r) * ds;
@@ -320,7 +355,7 @@
       r += grDiffR; g += grDiffG; b += grDiffB;
     }
 
-    if (!origBlue) {
+    if (!origBlueish) {
       const fm = r > g ? (r > b ? r : b) : (g > b ? g : b);
       const mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
       if (b > mn) b = mn;
@@ -357,11 +392,551 @@
       r = TYR; g = TYG; b = TYB;
     }
 
+    const yellowCleanup = !skipYellow && !origRed && !origBlueish && !strongGreen && !greenProtect &&
+      r > 170 && g > 150 && Math.abs(r - g) < 50 &&
+      b < Math.min(r, g) * 0.75 &&
+      oB < minRG * (cfg.YELLOW_BLUE_RATIO_MAX + 0.12);
+    if (yellowCleanup) {
+      r = TY.R; g = TY.G; b = TY.B;
+    }
+
+    const oMax = oR > oG ? (oR > oB ? oR : oB) : (oG > oB ? oG : oB);
+    const oMin = oR < oG ? (oR < oB ? oR : oB) : (oG < oB ? oG : oB);
+    const satOrig = oMax ? (oMax - oMin) / oMax : 0;
+
+    if (satOrig > PURIFY_SAT_MIN && oMax > PURIFY_LUMA_MIN) {
+      if (isYStrong) {
+        r = TY.R; g = TY.G; b = TY.B;
+      } else {
+        const redSnap = origRed && !isYStrong && !isY && !yellowLike &&
+          (oR - oG) > PURIFY_RED_GAP && (oR - oB) > PURIFY_RED_GAP &&
+          oR > oG * 1.6 && oR > oB * 1.35;
+        const blueSnap = origBlueish &&
+          (oB - oR) > PURIFY_BLUE_GAP && (oB - oG) > PURIFY_BLUE_GAP;
+        if (redSnap) {
+          r = cfg.TARGET_RED_R; g = cfg.TARGET_RED_G; b = cfg.TARGET_RED_B;
+        } else if (blueSnap) {
+          r = cfg.TARGET_BLUE_R; g = cfg.TARGET_BLUE_G; b = cfg.TARGET_BLUE_B;
+        }
+      }
+    }
+
     const rr = (U.clamp(r) + 0.5) | 0;
     const gg = (U.clamp(g) + 0.5) | 0;
     const bb = (U.clamp(b) + 0.5) | 0;
     return (rr << 16) | (gg << 8) | bb;
   }
+
+  const floatsToCanvas = (rArr, gArr, bArr, w, h) => {
+    const out = document.createElement("canvas");
+    out.width = w;
+    out.height = h;
+    const ctx = out.getContext("2d", { willReadFrequently: true });
+    const id = ctx.createImageData(w, h);
+    const d = id.data;
+    const len = rArr.length;
+    for (let i = 0, j = 0; i < len; i++, j += 4) {
+      d[j] = (U.clamp(rArr[i]) + 0.5) | 0;
+      d[j + 1] = (U.clamp(gArr[i]) + 0.5) | 0;
+      d[j + 2] = (U.clamp(bArr[i]) + 0.5) | 0;
+      d[j + 3] = 255;
+    }
+    ctx.putImageData(id, 0, 0);
+    return out;
+  };
+
+  const applyMatrixPass = async (src, T) => {
+    const c = src.getContext("2d", { willReadFrequently: true });
+    const w = src.width;
+    const h = src.height;
+    const id = c.getImageData(0, 0, w, h);
+    const d = id.data;
+    const total = w * h;
+    const rArr = new Float32Array(total);
+    const gArr = new Float32Array(total);
+    const bArr = new Float32Array(total);
+    const [rR, rG, rB] = T;
+    const rR0 = rR[0], rR1 = rR[1], rR2 = rR[2], rR3 = rR[3];
+    const rG0 = rG[0], rG1 = rG[1], rG2 = rG[2], rG3 = rG[3];
+    const rB0 = rB[0], rB1 = rB[1], rB2 = rB[2], rB3 = rB[3];
+
+    for (let y = 0, p = 0, idx = 0; y < h; y++) {
+      for (let x = 0; x < w; x++, p++, idx += 4) {
+        const oR = d[idx], oG = d[idx + 1], oB = d[idx + 2];
+        rArr[p] = rR0 * oR + rR1 * oG + rR2 * oB + rR3;
+        gArr[p] = rG0 * oR + rG1 * oG + rG2 * oB + rG3;
+        bArr[p] = rB0 * oR + rB1 * oG + rB2 * oB + rB3;
+      }
+      if ((y & 15) === 0) await U.next();
+    }
+
+    return { rArr, gArr, bArr, w, h, orig: d };
+  };
+
+  const applyExposurePass = async (rArr, gArr, bArr, w, h) => {
+    const len = rArr.length;
+    const step = Math.max(1, ((len / 50000) | 0));
+    const hist = new Uint32Array(256);
+    let samples = 0;
+
+    for (let i = 0; i < len; i += step) {
+      const l = rArr[i] * GRAY_R + gArr[i] * GRAY_G + bArr[i] * GRAY_B;
+      const li = l < 0 ? 0 : l > 255 ? 255 : l | 0;
+      hist[li]++;
+      samples++;
+    }
+
+    const total = samples || 1;
+    const p02 = pctFromHist(hist, total, 0.02);
+    const p98 = pctFromHist(hist, total, 0.98);
+    const range = Math.max(1, p98 - p02);
+    const targetLow = 18;
+    const targetHigh = 238;
+    const scaleFull = (targetHigh - targetLow) / range;
+    const scaleClamped = Math.max(0.7, Math.min(1.45, scaleFull));
+    const offsetFull = targetLow - p02 * scaleClamped;
+    const delta = Math.max(Math.abs(p02 - targetLow), Math.abs(p98 - targetHigh));
+    const strength = Math.min(1, delta / 70);
+
+    if (strength < 0.08) return { rArr, gArr, bArr, applied: false };
+
+    const scale = 1 + (scaleClamped - 1) * strength;
+    const offset = offsetFull * strength;
+
+    for (let y = 0, p = 0; y < h; y++) {
+      for (let x = 0; x < w; x++, p++) {
+        rArr[p] = rArr[p] * scale + offset;
+        gArr[p] = gArr[p] * scale + offset;
+        bArr[p] = bArr[p] * scale + offset;
+      }
+      if ((y & 15) === 0) await U.next();
+    }
+
+    return { rArr, gArr, bArr, applied: true };
+  };
+
+  const applyTonePass = async (orig, rIn, gIn, bIn, w, h, cfg) => {
+    const { sx, sy, sw, sh, em } = edgeBounds();
+    const sxPlusSw = sx + sw;
+    const syPlusSh = sy + sh;
+    const outR = new Float32Array(rIn.length);
+    const outG = new Float32Array(gIn.length);
+    const outB = new Float32Array(bIn.length);
+    const WT = cfg.WHITE_THRESHOLD;
+
+    for (let y = 0, p = 0, idx = 0; y < h; y++) {
+      const inY = y >= sy && y < syPlusSh;
+      const yMinusSy = y - sy;
+      const edgeY = inY && (yMinusSy < em || (syPlusSh - y) < em);
+
+      for (let x = 0; x < w; x++, p++, idx += 4) {
+        const oR = orig[idx], oG = orig[idx + 1], oB = orig[idx + 2];
+        let r = rIn[p], g = gIn[p], b = bIn[p];
+
+        const mxRG = oR > oG ? oR : oG;
+        const mxClamped = mxRG > 1 ? mxRG : 1;
+        const origBlue = oB - mxRG >= cfg.BLUE_MIN_DIFF &&
+          oB >= cfg.BLUE_MIN_BLUE &&
+          oB / mxClamped >= cfg.BLUE_RATIO;
+        const origRed = oR > cfg.ORIGRED_MIN_RED &&
+          oR > oG * cfg.ORIGRED_RED_TO_GREEN &&
+          oR > oB * cfg.ORIGRED_RED_TO_BLUE;
+
+        const strongGreen = oG > oR * 1.3 && oG > oB * 1.6;
+        const greenProtect = oG > 80 && oG > oR * 1.15 && oG > oB * 1.25 &&
+          (oG - oR) > 18 && (oG - oB) > 18;
+        const blueMinBlue = Math.max(24, cfg.BLUE_MIN_BLUE - 10);
+        const blueMinDiff = Math.max(4, cfg.BLUE_MIN_DIFF - 6);
+        const blueRatio = Math.max(1.05, cfg.BLUE_RATIO - 0.12);
+        const blueLike = !origRed && !strongGreen &&
+          oB >= blueMinBlue &&
+          (oB - mxRG) >= blueMinDiff &&
+          oB / mxClamped >= blueRatio;
+        const blueSoft = !origRed && !strongGreen &&
+          oB >= 40 && (oB - oR) > 12 && (oB - oG) > 12;
+        const origBlueish = origBlue || blueLike || blueSoft;
+        const minRG = oR < oG ? oR : oG;
+        const rgDiff = Math.abs(oR - oG);
+        const rgClose = rgDiff < cfg.YELLOW_RG_DIFF_MAX;
+        let isY = oR > cfg.YELLOW_MIN_RED &&
+          oG > cfg.YELLOW_MIN_GREEN &&
+          rgClose &&
+          oG > oR * cfg.YELLOW_GREEN_TO_RED_MIN &&
+          oB < minRG * cfg.YELLOW_BLUE_RATIO_MAX;
+        if ((strongGreen || greenProtect) && isY) isY = false;
+
+        const mx = oR > oG ? (oR > oB ? oR : oB) : (oG > oB ? oG : oB);
+        const mn = oR < oG ? (oR < oB ? oR : oB) : (oG < oB ? oG : oB);
+        const sat = mx ? (mx - mn) / mx : 0;
+        const isYStrong = isY && sat > 0.3 && minRG > 120;
+        const redEdge = origRed && !origBlue && !isYStrong &&
+          r > 200 && r - g > 60 && r - b > 60;
+
+        if (!origBlueish) {
+          const minRGB = r < g ? (r < b ? r : b) : (g < b ? g : b);
+          if (b > minRGB) b = minRGB;
+
+          let maxRGB = r > g ? (r > b ? r : b) : (g > b ? g : b);
+
+          if (maxRGB < cfg.DARK_T1) {
+            const dk = 1 - maxRGB / cfg.DARK_T1;
+            const n = r < g ? (r < b ? r : b) : (g < b ? g : b);
+            const dkQuarter = dk * 0.25;
+            r -= (r - n) * dk;
+            g -= (g - n) * dk;
+            b -= (b - n) * dk;
+            r *= 1 - dkQuarter;
+            g *= 1 - dkQuarter;
+            b *= 1 - dkQuarter;
+            maxRGB = r > g ? (r > b ? r : b) : (g > b ? g : b);
+          }
+
+          if (maxRGB < cfg.DARK_T2) {
+            const n = r < g ? (r < b ? r : b) : (g < b ? g : b);
+            const factor = 1 - (1 - maxRGB / cfg.DARK_T2) * 0.35;
+            r = g = b = n * factor;
+            maxRGB = r;
+          }
+
+          if (maxRGB < cfg.DARK_T3) {
+            const n = r < g ? (r < b ? r : b) : (g < b ? g : b);
+            const v = n * maxRGB / cfg.DARK_T3 * 0.6;
+            r = g = b = v;
+          }
+        }
+
+        r = U.clamp(r); g = U.clamp(g); b = U.clamp(b);
+
+        let edge = false;
+        if (inY && x >= sx && x < sxPlusSw) {
+          const dl = x - sx;
+          const dr = sxPlusSw - x;
+          edge = edgeY || dl < em || dr < em;
+        }
+
+        if (!edge && !redEdge) {
+          const mn2 = Math.min(r, g, b);
+          const rng = Math.max(r, g, b) - mn2;
+          let ws = 0;
+
+          if (mn2 > WT.LEVEL_1.MIN && rng < WT.LEVEL_1.RANGE) {
+            ws = (mn2 - WT.LEVEL_1.MIN) / 135 * (1 - rng / WT.LEVEL_1.RANGE) * WT.LEVEL_1.STRENGTH;
+          }
+          if (mn2 > WT.LEVEL_2.MIN && rng < WT.LEVEL_2.RANGE) ws = Math.max(ws, WT.LEVEL_2.STRENGTH);
+          if (mn2 > WT.LEVEL_3.MIN && rng < WT.LEVEL_3.RANGE) ws = Math.max(ws, WT.LEVEL_3.STRENGTH);
+          if (mn2 > WT.LEVEL_4.MIN && rng < WT.LEVEL_4.RANGE) ws = Math.max(ws, WT.LEVEL_4.STRENGTH);
+          if (mn2 > WT.LEVEL_5.MIN && rng < WT.LEVEL_5.RANGE) ws = Math.max(ws, WT.LEVEL_5.STRENGTH);
+          if (mn2 > WT.LEVEL_6.MIN && rng < WT.LEVEL_6.RANGE) ws = WT.LEVEL_6.STRENGTH;
+
+          if (ws > 0) {
+            const bl = ws * ws * (3 - 2 * ws);
+            r += (255 - r) * bl;
+            g += (255 - g) * bl;
+            b += (255 - b) * bl;
+          }
+        }
+
+        outR[p] = r;
+        outG[p] = g;
+        outB[p] = b;
+      }
+
+      if ((y & 15) === 0) await U.next();
+    }
+
+    return { rArr: outR, gArr: outG, bArr: outB };
+  };
+
+  const applyColorPass = async (orig, rIn, gIn, bIn, w, h, cfg) => {
+    const { sx, sy, sw, sh, em } = edgeBounds();
+    const { x1: crx, y1: cry, w: crw, h: crh } = colorRectBounds();
+    const dotColors = getDotColors();
+    const crx2 = crx + crw;
+    const cry2 = cry + crh;
+    const sxPlusSw = sx + sw;
+    const syPlusSh = sy + sh;
+    const outR = new Float32Array(rIn.length);
+    const outG = new Float32Array(gIn.length);
+    const outB = new Float32Array(bIn.length);
+    const WT = cfg.WHITE_THRESHOLD;
+    const DS = cfg.DESATURATION;
+    const TY = cfg.TARGET_YELLOW;
+
+    for (let y = 0, p = 0, idx = 0; y < h; y++) {
+      const inY = y >= sy && y < syPlusSh;
+      const yMinusSy = y - sy;
+      const edgeY = inY && (yMinusSy < em || (syPlusSh - y) < em);
+      const inColorRow = y >= cry && y < cry2;
+
+      for (let x = 0; x < w; x++, p++, idx += 4) {
+        const oR = orig[idx], oG = orig[idx + 1], oB = orig[idx + 2];
+        let r = rIn[p], g = gIn[p], b = bIn[p];
+
+        const mxRG = oR > oG ? oR : oG;
+        const mxClamped = mxRG > 1 ? mxRG : 1;
+        const origBlue = oB - mxRG >= cfg.BLUE_MIN_DIFF &&
+          oB >= cfg.BLUE_MIN_BLUE &&
+          oB / mxClamped >= cfg.BLUE_RATIO;
+
+        const origRed = oR > cfg.ORIGRED_MIN_RED &&
+          oR > oG * cfg.ORIGRED_RED_TO_GREEN &&
+          oR > oB * cfg.ORIGRED_RED_TO_BLUE;
+
+        const origYG = oG > ORIG_YG_GREEN_MIN && oG > oB * ORIG_YG_GREEN_BLUE_RATIO;
+        const strongGreen = oG > oR * 1.3 && oG > oB * 1.6;
+        const greenProtect = oG > 80 && oG > oR * 1.15 && oG > oB * 1.25 &&
+          (oG - oR) > 18 && (oG - oB) > 18;
+        const blueMinBlue = Math.max(24, cfg.BLUE_MIN_BLUE - 10);
+        const blueMinDiff = Math.max(4, cfg.BLUE_MIN_DIFF - 6);
+        const blueRatio = Math.max(1.05, cfg.BLUE_RATIO - 0.12);
+        const blueLike = !origRed && !strongGreen &&
+          oB >= blueMinBlue &&
+          (oB - mxRG) >= blueMinDiff &&
+          oB / mxClamped >= blueRatio;
+        const blueSoft = !origRed && !strongGreen &&
+          oB >= 40 && (oB - oR) > 12 && (oB - oG) > 12;
+        const origBlueish = origBlue || blueLike || blueSoft;
+
+        const minRG = oR < oG ? oR : oG;
+        const rgDiff = Math.abs(oR - oG);
+        const rgClose = rgDiff < cfg.YELLOW_RG_DIFF_MAX;
+        let isY = oR > cfg.YELLOW_MIN_RED &&
+          oG > cfg.YELLOW_MIN_GREEN &&
+          rgClose &&
+          oG > oR * cfg.YELLOW_GREEN_TO_RED_MIN &&
+          oB < minRG * cfg.YELLOW_BLUE_RATIO_MAX;
+        if ((strongGreen || greenProtect) && isY) isY = false;
+
+        const mx = oR > oG ? (oR > oB ? oR : oB) : (oG > oB ? oG : oB);
+        const mn = oR < oG ? (oR < oB ? oR : oB) : (oG < oB ? oG : oB);
+        const sat = mx ? (mx - mn) / mx : 0;
+        const isYStrong = isY && sat > 0.3 && minRG > 120;
+        const yellowLike = !strongGreen && !greenProtect &&
+          minRG > 110 &&
+          rgDiff < Math.min(cfg.YELLOW_RG_DIFF_MAX + 6, 30) &&
+          oR > (cfg.YELLOW_MIN_RED - 5) &&
+          oG > (cfg.YELLOW_MIN_GREEN - 5) &&
+          oB < minRG * (cfg.YELLOW_BLUE_RATIO_MAX + 0.08);
+        const redEdge = origRed && !origBlue && !isYStrong &&
+          r > 200 && r - g > 60 && r - b > 60;
+
+        let edge = false;
+        if (inY && x >= sx && x < sxPlusSw) {
+          const dl = x - sx;
+          const dr = sxPlusSw - x;
+          edge = edgeY || dl < em || dr < em;
+        }
+
+        const inColorRect = inColorRow && x >= crx && x < crx2;
+        const skipYellow = inColorRect && isDotColor(oR, oG, oB, dotColors);
+
+        const origYellow = !skipYellow && edge && isYStrong;
+        if (origYellow) {
+          outR[p] = TY.R;
+          outG[p] = TY.G;
+          outB[p] = TY.B;
+          continue;
+        }
+
+        r = U.clamp(r); g = U.clamp(g); b = U.clamp(b);
+
+        const wasY = !skipYellow && !origRed && !origBlueish && !greenProtect &&
+          (isYStrong || yellowLike);
+        const origRedish = origRed || (oR > oG * 1.1 && oR > oB * 1.1);
+        const isR = origRedish && r > 120 && r > g * 1.3 && r > b;
+        const isRSoft = redEdge && r > g && r > b;
+        if (wasY) {
+          r = TY.R; g = TY.G; b = TY.B;
+        }
+
+        if (isR || origRed || isRSoft) {
+          if (b > g * 0.7) b -= (b - g * 0.5) * 0.85;
+          const gr = r * GRAY_R + g * GRAY_G + b * GRAY_B;
+          const ds = DS.RED_STRENGTH;
+          const grDiffR = (gr - r) * ds;
+          const grDiffG = (gr - g) * ds;
+          const grDiffB = (gr - b) * ds;
+          r += grDiffR; g += grDiffG; b += grDiffB;
+        }
+
+        if (origBlueish) {
+          const gr = r * GRAY_R + g * GRAY_G + b * GRAY_B;
+          const ds = DS.BLUE_STRENGTH;
+          const grDiffR = (gr - r) * ds;
+          const grDiffG = (gr - g) * ds;
+          const grDiffB = (gr - b) * ds;
+          r += grDiffR; g += grDiffG; b += grDiffB;
+          const maxRG = r > g ? r : g;
+          if (maxRG < 180 && b - maxRG < 25) {
+            const newB = maxRG + 35;
+            b = newB < 255 ? newB : 255;
+          }
+        }
+
+        if (!origBlueish && !origRed && !origYG && !wasY && !isR && !isRSoft) {
+          const gr = r * GRAY_R + g * GRAY_G + b * GRAY_B;
+          const ds = DS.NEUTRAL_STRENGTH;
+          const grDiffR = (gr - r) * ds;
+          const grDiffG = (gr - g) * ds;
+          const grDiffB = (gr - b) * ds;
+          r += grDiffR; g += grDiffG; b += grDiffB;
+        }
+
+        if (!origBlueish) {
+          const fm = r > g ? (r > b ? r : b) : (g > b ? g : b);
+          const mn2 = r < g ? (r < b ? r : b) : (g < b ? g : b);
+          if (b > mn2) b = mn2;
+          if (fm < 150) {
+            const bl = 1 - fm / 150;
+            const rDiff = (r - mn2) * bl;
+            const gDiff = (g - mn2) * bl;
+            const bDiff = (b - mn2) * bl;
+            r -= rDiff;
+            g -= gDiff;
+            b -= bDiff;
+          }
+          if (fm < 90) {
+            const minVal = (r < g ? (r < b ? r : b) : (g < b ? g : b)) * 0.8;
+            r = g = b = minVal;
+          }
+        }
+
+        if (!edge && !redEdge) {
+          const fmn = Math.min(r, g, b);
+          const frg = Math.max(r, g, b) - fmn;
+
+          if (fmn > 245) {
+            r = g = b = 255;
+          } else if (fmn > WT.FINAL_MIN && frg < WT.FINAL_RANGE) {
+            const sn = (fmn - WT.FINAL_MIN) / 25;
+            r += (255 - r) * sn; g += (255 - g) * sn; b += (255 - b) * sn;
+            if (Math.min(r, g, b) > 250) r = g = b = 255;
+          }
+        }
+
+        if (wasY) {
+          r = TY.R; g = TY.G; b = TY.B;
+        }
+
+        const yellowCleanup = !skipYellow && !origRed && !origBlueish && !strongGreen && !greenProtect &&
+          r > 170 && g > 150 && Math.abs(r - g) < 50 &&
+          b < Math.min(r, g) * 0.75 &&
+          oB < minRG * (cfg.YELLOW_BLUE_RATIO_MAX + 0.12);
+        if (yellowCleanup) {
+          r = TY.R; g = TY.G; b = TY.B;
+        }
+
+        const oMax = oR > oG ? (oR > oB ? oR : oB) : (oG > oB ? oG : oB);
+        const oMin = oR < oG ? (oR < oB ? oR : oB) : (oG < oB ? oG : oB);
+        const satOrig = oMax ? (oMax - oMin) / oMax : 0;
+
+        if (satOrig > PURIFY_SAT_MIN && oMax > PURIFY_LUMA_MIN) {
+          if (isYStrong) {
+            r = TY.R; g = TY.G; b = TY.B;
+          } else {
+            const redSnap = origRed && !isYStrong && !isY && !yellowLike &&
+              (oR - oG) > PURIFY_RED_GAP && (oR - oB) > PURIFY_RED_GAP &&
+              oR > oG * 1.6 && oR > oB * 1.35;
+            const blueSnap = origBlueish &&
+              (oB - oR) > PURIFY_BLUE_GAP && (oB - oG) > PURIFY_BLUE_GAP;
+            if (redSnap) {
+              r = cfg.TARGET_RED_R; g = cfg.TARGET_RED_G; b = cfg.TARGET_RED_B;
+            } else if (blueSnap) {
+              r = cfg.TARGET_BLUE_R; g = cfg.TARGET_BLUE_G; b = cfg.TARGET_BLUE_B;
+            }
+          }
+        }
+
+        outR[p] = r;
+        outG[p] = g;
+        outB[p] = b;
+      }
+
+      if ((y & 15) === 0) await U.next();
+    }
+
+    return { rArr: outR, gArr: outG, bArr: outB };
+  };
+
+  SP.applyColorStepsAsync = async function applyColorStepsAsync(src, T, onStep) {
+    const cfg = buildFastConfig(SP.Config);
+    const { rArr: r1, gArr: g1, bArr: b1, w, h, orig } = await applyMatrixPass(src, T);
+    if (onStep) await onStep("Recoloring: Transform", floatsToCanvas(r1, g1, b1, w, h));
+
+    const expo = await applyExposurePass(r1, g1, b1, w, h);
+    if (expo.applied && onStep) await onStep("Recoloring: Exposure", floatsToCanvas(expo.rArr, expo.gArr, expo.bArr, w, h));
+
+    const tone = await applyTonePass(orig, expo.rArr, expo.gArr, expo.bArr, w, h, cfg);
+    if (onStep) await onStep("Recoloring: Tone", floatsToCanvas(tone.rArr, tone.gArr, tone.bArr, w, h));
+
+    const color = await applyColorPass(orig, tone.rArr, tone.gArr, tone.bArr, w, h, cfg);
+    const finalCanvas = floatsToCanvas(color.rArr, color.gArr, color.bArr, w, h);
+    if (onStep) await onStep("Recoloring: Color", finalCanvas);
+
+    return finalCanvas;
+  };
+
+  SP.applyBalanceStepsAsync = async function applyBalanceStepsAsync(cvs, onStep) {
+    const cfg = buildFastConfig(SP.Config);
+    const c = cvs.getContext("2d", { willReadFrequently: true });
+    const w = cvs.width;
+    const h = cvs.height;
+    const id = c.getImageData(0, 0, w, h);
+    const d = id.data;
+
+    const step = Math.max(1, ((d.length / 4 / 50000) | 0));
+    const histR = new Uint32Array(256);
+    const histG = new Uint32Array(256);
+    const histB = new Uint32Array(256);
+    let samples = 0;
+    for (let i = 0; i < d.length; i += 4 * step) {
+      histR[d[i]]++;
+      histG[d[i + 1]]++;
+      histB[d[i + 2]]++;
+      samples++;
+    }
+    const total = samples || 1;
+    const p98R = pctFromHist(histR, total, 0.98);
+    const p98G = pctFromHist(histG, total, 0.98);
+    const p98B = pctFromHist(histB, total, 0.98);
+    const p02R = pctFromHist(histR, total, 0.02);
+    const p02G = pctFromHist(histG, total, 0.02);
+    const p02B = pctFromHist(histB, total, 0.02);
+
+    const rnR = Math.max(1, p98R - p02R);
+    const rnG = Math.max(1, p98G - p02G);
+    const rnB = Math.max(1, p98B - p02B);
+
+    const scaleR = 251 / rnR;
+    const scaleG = 251 / rnG;
+    const scaleB = 251 / rnB;
+
+    const totalPx = w * h;
+    const rArr = new Float32Array(totalPx);
+    const gArr = new Float32Array(totalPx);
+    const bArr = new Float32Array(totalPx);
+
+    for (let y = 0, p = 0, idx = 0; y < h; y++) {
+      for (let x = 0; x < w; x++, p++, idx += 4) {
+        const oR = d[idx], oG = d[idx + 1], oB = d[idx + 2];
+        rArr[p] = (oR - p02R) * scaleR + 3;
+        gArr[p] = (oG - p02G) * scaleG + 3;
+        bArr[p] = (oB - p02B) * scaleB + 3;
+      }
+      if ((y & 15) === 0) await U.next();
+    }
+
+    if (onStep) await onStep("Recoloring: Balance", floatsToCanvas(rArr, gArr, bArr, w, h));
+
+    const tone = await applyTonePass(d, rArr, gArr, bArr, w, h, cfg);
+    if (onStep) await onStep("Recoloring: Tone", floatsToCanvas(tone.rArr, tone.gArr, tone.bArr, w, h));
+
+    const color = await applyColorPass(d, tone.rArr, tone.gArr, tone.bArr, w, h, cfg);
+    const finalCanvas = floatsToCanvas(color.rArr, color.gArr, color.bArr, w, h);
+    if (onStep) await onStep("Recoloring: Color", finalCanvas);
+
+    return finalCanvas;
+  };
 
   SP.applyColorAsync = async function applyColorAsync(src, T, progress) {
     const cfg = buildFastConfig(SP.Config);
@@ -540,7 +1115,7 @@
       const sh2 = m.t(new cv.Mat());
 
       cv.GaussianBlur(s, bl, new cv.Size(3, 3), 0);
-      cv.addWeighted(s, 1.6, bl, -0.6, 0, sh2);
+      cv.addWeighted(s, 1.3, bl, -0.3, 0, sh2);
 
       return U.mat2C(sh2);
     } catch (e) {

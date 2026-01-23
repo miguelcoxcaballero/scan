@@ -44,6 +44,13 @@
   /* Derived dimensions - will be initialized after config loads */
   let PX_PER_CM, A4_W, A4_H, SX, SY, STENCIL_CFG, MARKER_TARGET, ALG;
 
+  const toHex = v => {
+    const n = Math.max(0, Math.min(255, v | 0));
+    return n.toString(16).padStart(2, "0");
+  };
+
+  const rgbToHex = (r, g, b) => `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+
   // Initialize dimensions and algorithm object from loaded config
   function initializeDimensions(config) {
     CONFIG = config;
@@ -62,12 +69,17 @@
     };
 
     /* Stencil configuration (pixel space) */
+    const targetYellow = config.TARGET_YELLOW;
+    const stencilYellow = targetYellow
+      ? rgbToHex(targetYellow.R, targetYellow.G, targetYellow.B)
+      : "#ffde00";
+
     STENCIL_CFG = {
       w: 18 * PX_PER_CM,
       h: 27 * PX_PER_CM,
       x: 1.5 * PX_PER_CM,
       y: 1.43 * PX_PER_CM,
-      borderColor: "#ffde00",
+      borderColor: stencilYellow,
       bgColor: "#fff",
       gapMM: 0.4
     };
@@ -202,6 +214,7 @@
 
   /* Stencil download */
   function getStencilSVGString() {
+    const y = (STENCIL_CFG && STENCIL_CFG.borderColor) ? STENCIL_CFG.borderColor : "#ffde00";
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 29.7" width="21cm" height="29.7cm">
       <defs>
         <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
@@ -213,9 +226,9 @@
       </defs>
       <rect x="0" y="0" width="21" height="29.7" fill="white"/>
       <rect x="1.5" y="1.43" width="18" height="27" rx="0.03" ry="0.03"
-            fill="none" stroke="#ffde00" stroke-width="0.06"/>
+            fill="none" stroke="${y}" stroke-width="0.06"/>
       <rect x="1.75" y="1.68" width="17.5" height="25.5" fill="url(#dotGrid)"/>
-      <g stroke="#ffde00" stroke-width="0.06" fill="none">
+      <g stroke="${y}" stroke-width="0.06" fill="none">
         <rect x="2.0" y="27.43" width="8.0" height="0.5" rx="0.03" ry="0.03"/>
         <path d="M 2.5 27.43 v 0.5 M 3.0 27.43 v 0.5 M 3.5 27.43 v 0.5
                  M 4.0 27.43 v 0.5 M 4.5 27.43 v 0.5 M 5.0 27.43 v 0.5
@@ -229,7 +242,7 @@
                  M 16.0 27.43 v 0.5 M 16.5 27.43 v 0.5 M 17.0 27.43 v 0.5
                  M 17.5 27.43 v 0.5 M 18.0 27.43 v 0.5 M 18.5 27.43 v 0.5"/>
       </g>
-      <g stroke="#ffde00" stroke-width="0.06">
+      <g stroke="${y}" stroke-width="0.06">
         <circle cx="10.125" cy="27.68" r="0.125" fill="#ff0000"/>
         <circle cx="10.375" cy="27.68" r="0.125" fill="#000000"/>
         <circle cx="10.625" cy="27.68" r="0.125" fill="#0000ff"/>
@@ -651,14 +664,16 @@
     }
 
     const T = SP.buildTransform();
-    stageOn("Recoloring…");
-    const prog = (y, h) => stageOn(`Recoloring… (${((y / h) * 100) | 0}%)`);
+    const showRecolorStep = async (label, canvas) => showTemp(canvas, label);
 
     let fin;
-    if (T) fin = await SP.applyColorAsync(aligned, T, prog);
-    else fin = await SP.applyBalanceAsync(aligned, prog);
+    if (T) fin = await SP.applyColorStepsAsync(aligned, T, showRecolorStep);
+    else fin = await SP.applyBalanceStepsAsync(aligned, showRecolorStep);
 
-    if (usedYellow) fin = SP.restoreMargins(fin);
+    if (usedYellow) {
+      fin = SP.restoreMargins(fin);
+      await showTemp(fin, "Recoloring: Restore margins");
+    }
 
     await showTemp(fin, "Final");
 
@@ -1127,7 +1142,7 @@
 
     S.busy = 1;
     E.empty.style.display = "none";
-    toast("Processing…");
+    stageOn("Processing…");
 
     for (let fi = 0; fi < files.length; fi++) {
       const file = files[fi];
@@ -1173,3 +1188,4 @@
   window.handleFiles = handleFiles;
 
 })();
+

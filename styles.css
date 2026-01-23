@@ -894,8 +894,9 @@ body {
 }
 #stageBadge {
   position: absolute;
-  top: 14px;
-  left: 14px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   background: rgba(0,0,0,.55);
   border: 1px solid rgba(255,255,255,.18);
   backdrop-filter: blur(10px);
