@@ -83,7 +83,13 @@
     TARGET_RED_B: cfg.CALIBRATION_TARGETS.red[2],
     TARGET_BLUE_R: cfg.CALIBRATION_TARGETS.blue[0],
     TARGET_BLUE_G: cfg.CALIBRATION_TARGETS.blue[1],
-    TARGET_BLUE_B: cfg.CALIBRATION_TARGETS.blue[2]
+    TARGET_BLUE_B: cfg.CALIBRATION_TARGETS.blue[2],
+    CONTRAST_TARGET_RANGE: cfg.CONTRAST_TARGET_RANGE,
+    CONTRAST_MIN_SCALE: cfg.CONTRAST_MIN_SCALE,
+    EXPOSURE_TARGET_MID: cfg.EXPOSURE_TARGET_MID,
+    EXPOSURE_TARGET_LOW: cfg.EXPOSURE_TARGET_LOW,
+    EXPOSURE_TARGET_HIGH: cfg.EXPOSURE_TARGET_HIGH,
+    EXPOSURE_MAX_GAIN: cfg.EXPOSURE_MAX_GAIN
   });
 
   const PURIFY_SAT_MIN = 0.24;
@@ -473,7 +479,50 @@
     return { rArr, gArr, bArr, w, h, orig: d };
   };
 
-  const applyExposurePass = async (rArr, gArr, bArr, w, h) => {
+  const applyContrastPass = async (rArr, gArr, bArr, w, h, cfg) => {
+    const len = rArr.length;
+    const step = Math.max(1, ((len / 50000) | 0));
+    const hist = new Uint32Array(256);
+    let samples = 0;
+
+    for (let i = 0; i < len; i += step) {
+      const l = rArr[i] * GRAY_R + gArr[i] * GRAY_G + bArr[i] * GRAY_B;
+      const li = l < 0 ? 0 : l > 255 ? 255 : l | 0;
+      hist[li]++;
+      samples++;
+    }
+
+    const total = samples || 1;
+    const p05 = pctFromHist(hist, total, 0.05);
+    const p50 = pctFromHist(hist, total, 0.5);
+    const p95 = pctFromHist(hist, total, 0.95);
+    const range = Math.max(1, p95 - p05);
+    const targetRange = cfg.CONTRAST_TARGET_RANGE;
+    if (range <= targetRange) return { rArr, gArr, bArr, applied: false };
+
+    const minScale = cfg.CONTRAST_MIN_SCALE;
+    const scaleFull = targetRange / range;
+    let scale = Math.max(minScale, Math.min(1, scaleFull));
+    let offset = p50 - p50 * scale;
+    let strength = Math.min(1, (range - targetRange) / 120);
+    if (strength < 0.08) return { rArr, gArr, bArr, applied: false };
+
+    scale = 1 + (scale - 1) * strength;
+    offset = offset * strength;
+
+    for (let y = 0, p = 0; y < h; y++) {
+      for (let x = 0; x < w; x++, p++) {
+        rArr[p] = rArr[p] * scale + offset;
+        gArr[p] = gArr[p] * scale + offset;
+        bArr[p] = bArr[p] * scale + offset;
+      }
+      if ((y & 15) === 0) await U.next();
+    }
+
+    return { rArr, gArr, bArr, applied: true };
+  };
+
+  const applyExposurePass = async (rArr, gArr, bArr, w, h, cfg) => {
     const len = rArr.length;
     const step = Math.max(1, ((len / 50000) | 0));
     const hist = new Uint32Array(256);
@@ -488,20 +537,47 @@
 
     const total = samples || 1;
     const p02 = pctFromHist(hist, total, 0.02);
+    const p50 = pctFromHist(hist, total, 0.5);
     const p98 = pctFromHist(hist, total, 0.98);
-    const range = Math.max(1, p98 - p02);
-    const targetLow = 18;
-    const targetHigh = 238;
-    const scaleFull = (targetHigh - targetLow) / range;
-    const scaleClamped = Math.max(0.7, Math.min(1.45, scaleFull));
-    const offsetFull = targetLow - p02 * scaleClamped;
-    const delta = Math.max(Math.abs(p02 - targetLow), Math.abs(p98 - targetHigh));
-    const strength = Math.min(1, delta / 70);
+    const targetMid = cfg.EXPOSURE_TARGET_MID;
+    const targetLow = cfg.EXPOSURE_TARGET_LOW;
+    const targetHigh = cfg.EXPOSURE_TARGET_HIGH;
+    const needBright = p50 < (targetMid - 15) || p02 < (targetLow - 6);
+    const needDark = p50 > (targetMid + 18) && p98 > (targetHigh + 5);
+
+    if (!needBright && !needDark) {
+      return { rArr, gArr, bArr, applied: false };
+    }
+
+    let scale = 1;
+    let offset = 0;
+    let strength = 0;
+
+    if (needBright) {
+      const gainMid = targetMid / Math.max(1, p50);
+      scale = Math.min(cfg.EXPOSURE_MAX_GAIN, Math.max(1.0, gainMid));
+      if (p02 < targetLow) offset = Math.min(40, (targetLow - p02) * 0.7);
+      strength = Math.min(1, (targetMid - p50) / 80);
+      strength = Math.max(0.25, strength);
+    } else {
+      const gainMid = targetMid / Math.max(1, p50);
+      scale = Math.max(0.75, Math.min(1.0, gainMid));
+      if (p98 > targetHigh + 5 && p02 > targetLow + 5) {
+        offset = -Math.min(25, (p98 - targetHigh) * 0.25);
+      }
+      strength = Math.min(0.6, (p50 - targetMid) / 80);
+      if (strength < 0.12) return { rArr, gArr, bArr, applied: false };
+    }
 
     if (strength < 0.08) return { rArr, gArr, bArr, applied: false };
 
-    const scale = 1 + (scaleClamped - 1) * strength;
-    const offset = offsetFull * strength;
+    scale = 1 + (scale - 1) * strength;
+    offset = offset * strength;
+
+    if (!needBright) {
+      const predictedMid = p50 * scale + offset;
+      if (predictedMid < (targetMid - 20)) return { rArr, gArr, bArr, applied: false };
+    }
 
     for (let y = 0, p = 0; y < h; y++) {
       for (let x = 0; x < w; x++, p++) {
@@ -863,8 +939,15 @@
     const { rArr: r1, gArr: g1, bArr: b1, w, h, orig } = await applyMatrixPass(src, T);
     if (onStep) await onStep("Recoloring: Transform", floatsToCanvas(r1, g1, b1, w, h));
 
-    const expo = await applyExposurePass(r1, g1, b1, w, h);
-    if (expo.applied && onStep) await onStep("Recoloring: Exposure", floatsToCanvas(expo.rArr, expo.gArr, expo.bArr, w, h));
+    const contrast = await applyContrastPass(r1, g1, b1, w, h, cfg);
+    if (onStep) {
+      await onStep("Recoloring: Contrast", floatsToCanvas(contrast.rArr, contrast.gArr, contrast.bArr, w, h));
+    }
+
+    const expo = await applyExposurePass(contrast.rArr, contrast.gArr, contrast.bArr, w, h, cfg);
+    if (onStep) {
+      await onStep("Recoloring: Exposure", floatsToCanvas(expo.rArr, expo.gArr, expo.bArr, w, h));
+    }
 
     const tone = await applyTonePass(orig, expo.rArr, expo.gArr, expo.bArr, w, h, cfg);
     if (onStep) await onStep("Recoloring: Tone", floatsToCanvas(tone.rArr, tone.gArr, tone.bArr, w, h));

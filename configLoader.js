@@ -45,6 +45,8 @@
       yellow: 50,
       white: 50,
       black: 50,
+      contrast_target: 50,
+      exposure_target: 50,
       noise: 30,
       definition: 50,
       margin_scale: 50
@@ -93,6 +95,8 @@
     const greenAdj = normCentered(cfg.green) * 0.5;
     const blueAdj = normCentered(cfg.blue) * 0.5;
     const yellowAdj = normCentered(cfg.yellow) * 0.5;
+    const contrastTarget = norm(cfg.contrast_target);
+    const exposureTarget = norm(cfg.exposure_target);
 
     // Red detection (affected by red channel adjustment)
     // Wider range to ensure red is caught
@@ -171,6 +175,14 @@
     const defOffset = (defScale - 0.5) * 2; // -1 to +1, centered at 50
     const RENDER_SCALE = 1.005 + (defOffset * 0.055); // 0.95-1.06
 
+    // --- NORMALIZATION TARGETS ---
+    const CONTRAST_TARGET_RANGE = 100 + (contrastTarget * 70); // 100-170
+    const CONTRAST_MIN_SCALE = 0.5 + (contrastTarget * 0.25); // 0.5-0.75
+    const EXPOSURE_TARGET_MID = 160 + (exposureTarget * 50); // 160-210
+    const EXPOSURE_TARGET_LOW = 20 + (exposureTarget * 20); // 20-40
+    const EXPOSURE_TARGET_HIGH = 235 + (exposureTarget * 15); // 235-250
+    const EXPOSURE_MAX_GAIN = 1.2 + (exposureTarget * 0.4); // 1.2-1.6
+
     // Build technical configuration
     return {
       RENDER_SCALE,
@@ -217,6 +229,13 @@
         NEUTRAL_STRENGTH
       },
 
+      CONTRAST_TARGET_RANGE,
+      CONTRAST_MIN_SCALE,
+      EXPOSURE_TARGET_MID,
+      EXPOSURE_TARGET_LOW,
+      EXPOSURE_TARGET_HIGH,
+      EXPOSURE_MAX_GAIN,
+
       STENCIL_COLORS: {
         red:   { r: 101, g: 51,  b: 49 },
         black: { r: 30,  g: 28,  b: 30 },
@@ -244,7 +263,7 @@
   // Load configuration from values.config
   SP.loadConfig = async function loadConfig() {
     try {
-      const response = await fetch('values.config');
+      const response = await fetch('values.config', { cache: 'no-store' });
       if (!response.ok) {
         throw new Error('Config file not found');
       }

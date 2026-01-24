@@ -122,11 +122,14 @@
 
   /* Load configuration from values.config */
   let configReady = false;
+  const refreshConfig = async () => {
+    const loadedConfig = await SP.loadConfig();
+    initializeDimensions(loadedConfig);
+    configReady = true;
+  };
   (async () => {
     try {
-      const loadedConfig = await SP.loadConfig();
-      initializeDimensions(loadedConfig);
-      configReady = true;
+      await refreshConfig();
       console.log('Configuration loaded successfully');
     } catch (err) {
       console.error('Failed to initialize configuration:', err);
@@ -185,6 +188,21 @@
   const mctx = E.mag.getContext("2d", { willReadFrequently: true });
 
   const next = U.next || (() => new Promise(requestAnimationFrame));
+  const MIN_UI_MS = 200;
+  const uiSleep = ms => new Promise(r => setTimeout(r, ms));
+  let uiQueue = Promise.resolve();
+  let lastUiStamp = 0;
+
+  const scheduleUi = fn => {
+    uiQueue = uiQueue.then(async () => {
+      const now = performance.now();
+      const wait = Math.max(0, lastUiStamp + MIN_UI_MS - now);
+      if (wait) await uiSleep(wait);
+      await fn();
+      lastUiStamp = performance.now();
+    });
+    return uiQueue;
+  };
   const isMobile = () => innerWidth <= 768;
 
   // Cache toast element
@@ -195,12 +213,14 @@
     setTimeout(() => toastEl.classList.remove("show"), 1800);
   };
 
-  const stageOn = t => {
+  const stageOnImmediate = t => {
     E.stage.textContent = t;
     E.badge.style.display = "flex";
   };
 
-  const stageOff = () => { E.badge.style.display = "none"; };
+  const stageOffImmediate = () => { E.badge.style.display = "none"; };
+  const stageOn = t => { scheduleUi(() => stageOnImmediate(t)); };
+  const stageOff = () => { scheduleUi(() => stageOffImmediate()); };
 
   /* Dropdown */
   E.ddBtn.addEventListener("click", e => {
@@ -471,31 +491,36 @@
   /* Temp preview */
   let _tmpURL = null;
   async function showTemp(c, label) {
-    stageOn(label);
-    E.empty.style.display = "none";
-    E.paper.style.display = "block";
-    E.crop.style.display = "none";
-    E.stencil.style.display = "none";
-    E.img.style.display = "block";
-
     const u = await toURL(c, "image/jpeg", 0.9);
-    if (_tmpURL) { URL.revokeObjectURL(_tmpURL); _tmpURL = null; }
-    _tmpURL = u;
-    E.img.src = u;
+    const cw = c.width;
+    const ch = c.height;
 
-    const asp = c.width / c.height;
-    const pad = 40;
-    const aw = E.viewport.clientWidth - pad;
-    const ah = E.viewport.clientHeight - pad;
+    scheduleUi(async () => {
+      stageOnImmediate(label);
+      E.empty.style.display = "none";
+      E.paper.style.display = "block";
+      E.crop.style.display = "none";
+      E.stencil.style.display = "none";
+      E.img.style.display = "block";
 
-    let w = aw;
-    let h = aw / asp;
-    if (h > ah) { h = ah; w = ah * asp; }
+      if (_tmpURL) { URL.revokeObjectURL(_tmpURL); _tmpURL = null; }
+      _tmpURL = u;
+      E.img.src = u;
 
-    E.paper.style.width = w + "px";
-    E.paper.style.height = h + "px";
-    resetZ();
-    await next();
+      const asp = cw / ch;
+      const pad = 40;
+      const aw = E.viewport.clientWidth - pad;
+      const ah = E.viewport.clientHeight - pad;
+
+      let w = aw;
+      let h = aw / asp;
+      if (h > ah) { h = ah; w = ah * asp; }
+
+      E.paper.style.width = w + "px";
+      E.paper.style.height = h + "px";
+      resetZ();
+      await next();
+    });
   }
 
   /* Initialize app when both config and OpenCV are ready */
@@ -613,12 +638,10 @@
 
   /* Processing pipeline (delegates to /processing/*.js) */
   async function process(srcCanvas, opts = {}) {
+    await refreshConfig();
     ALG.keys.forEach(k => ALG.cal[k].src = null);
 
     await showTemp(srcCanvas, "Original");
-
-    const pre = SP.preprocess(srcCanvas);
-    if (pre) await showTemp(pre, "Enhanced");
 
     const yR = SP.detectYellow(srcCanvas);
     await showTemp(yR.viz, "Yellow mask");
@@ -818,6 +841,27 @@
     resetZ();
   }
 
+  function syncFinalView() {
+    if (S.i < 0 || S.crop) return;
+    const p = S.pages[S.i];
+    if (!p) return;
+    E.paper.style.display = "block";
+    E.empty.style.display = "none";
+    if (p.displayUrl) {
+      E.img.src = p.displayUrl;
+      E.img.style.display = "block";
+    } else {
+      E.img.style.display = "none";
+    }
+    E.crop.style.display = "none";
+    $("cropBtn").disabled = false;
+    $("stencilBtn").disabled = false;
+    $("stencilBtn").classList.toggle("active", !!S.stencil);
+    E.stencil.style.display = S.stencil ? "block" : "none";
+    drawOverlay(stx, p.processed.width, p.processed.height);
+    fit();
+  }
+
   /* Selection */
   function select(i) {
     if (i < 0 || i >= S.pages.length) return;
@@ -894,6 +938,7 @@
         select(S.i);
         renderList();
         stageOff();
+        scheduleUi(syncFinalView);
       }, 10);
     }
 
@@ -1181,6 +1226,7 @@
     select(S.pages.length - 1);
     $("exportBtn").disabled = !S.pages.length;
     stageOff();
+    scheduleUi(syncFinalView);
     S.busy = 0;
   }
 
