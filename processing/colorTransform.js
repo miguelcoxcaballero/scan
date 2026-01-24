@@ -393,6 +393,23 @@
       }
     }
 
+    if (!skip && !redEdge && !origBlueish && !origRed && !origYG && !wasY && !isR && !isRSoft) {
+      const maxNow = r > g ? (r > b ? r : b) : (g > b ? g : b);
+      const minNow = r < g ? (r < b ? r : b) : (g < b ? g : b);
+      const rangeNow = maxNow - minNow;
+      const satNow = maxNow ? rangeNow / maxNow : 0;
+      const lumaNow = r * GRAY_R + g * GRAY_G + b * GRAY_B;
+      if (satNow < 0.14 && lumaNow > 135 && rangeNow < 38) {
+        const t = Math.min(1, (lumaNow - 135) / 80);
+        const s = Math.min(1, (0.14 - satNow) / 0.14);
+        const w = t * s;
+        const boost = 0.3 + 0.5 * w;
+        r += (255 - r) * boost;
+        g += (255 - g) * boost;
+        b += (255 - b) * boost;
+      }
+    }
+
     if (wasY && !origYellow) {
       const TYR = TY.R, TYG = TY.G, TYB = TY.B;
       r = TYR; g = TYG; b = TYB;
@@ -512,9 +529,25 @@
 
     for (let y = 0, p = 0; y < h; y++) {
       for (let x = 0; x < w; x++, p++) {
-        rArr[p] = rArr[p] * scale + offset;
-        gArr[p] = gArr[p] * scale + offset;
-        bArr[p] = bArr[p] * scale + offset;
+        const r0 = rArr[p];
+        const g0 = gArr[p];
+        const b0 = bArr[p];
+        const maxNow = r0 > g0 ? (r0 > b0 ? r0 : b0) : (g0 > b0 ? g0 : b0);
+        const minNow = r0 < g0 ? (r0 < b0 ? r0 : b0) : (g0 < b0 ? g0 : b0);
+        const satNow = maxNow ? (maxNow - minNow) / maxNow : 0;
+        const lumaNow = r0 * GRAY_R + g0 * GRAY_G + b0 * GRAY_B;
+        let w = 1;
+        if (satNow < 0.18 && lumaNow > 140) {
+          const t = Math.min(1, (lumaNow - 140) / 90);
+          const s = Math.min(1, (0.18 - satNow) / 0.18);
+          w = 1 - 0.75 * s * t;
+        }
+        const adjR = (r0 * scale + offset - r0) * w;
+        const adjG = (g0 * scale + offset - g0) * w;
+        const adjB = (b0 * scale + offset - b0) * w;
+        rArr[p] = r0 + adjR;
+        gArr[p] = g0 + adjG;
+        bArr[p] = b0 + adjB;
       }
       if ((y & 15) === 0) await U.next();
     }
@@ -581,9 +614,25 @@
 
     for (let y = 0, p = 0; y < h; y++) {
       for (let x = 0; x < w; x++, p++) {
-        rArr[p] = rArr[p] * scale + offset;
-        gArr[p] = gArr[p] * scale + offset;
-        bArr[p] = bArr[p] * scale + offset;
+        const r0 = rArr[p];
+        const g0 = gArr[p];
+        const b0 = bArr[p];
+        const maxNow = r0 > g0 ? (r0 > b0 ? r0 : b0) : (g0 > b0 ? g0 : b0);
+        const minNow = r0 < g0 ? (r0 < b0 ? r0 : b0) : (g0 < b0 ? g0 : b0);
+        const satNow = maxNow ? (maxNow - minNow) / maxNow : 0;
+        const lumaNow = r0 * GRAY_R + g0 * GRAY_G + b0 * GRAY_B;
+        let w = 1;
+        if (satNow < 0.18 && lumaNow > 140) {
+          const t = Math.min(1, (lumaNow - 140) / 90);
+          const s = Math.min(1, (0.18 - satNow) / 0.18);
+          w = 1 - 0.7 * s * t;
+        }
+        const adjR = (r0 * scale + offset - r0) * w;
+        const adjG = (g0 * scale + offset - g0) * w;
+        const adjB = (b0 * scale + offset - b0) * w;
+        rArr[p] = r0 + adjR;
+        gArr[p] = g0 + adjG;
+        bArr[p] = b0 + adjB;
       }
       if ((y & 15) === 0) await U.next();
     }
@@ -887,6 +936,23 @@
             const sn = (fmn - WT.FINAL_MIN) / 25;
             r += (255 - r) * sn; g += (255 - g) * sn; b += (255 - b) * sn;
             if (Math.min(r, g, b) > 250) r = g = b = 255;
+          }
+        }
+
+        if (!edge && !redEdge && !origBlueish && !origRed && !origYG && !wasY && !isR && !isRSoft) {
+          const maxNow = r > g ? (r > b ? r : b) : (g > b ? g : b);
+          const minNow = r < g ? (r < b ? r : b) : (g < b ? g : b);
+          const rangeNow = maxNow - minNow;
+          const satNow = maxNow ? rangeNow / maxNow : 0;
+          const lumaNow = r * GRAY_R + g * GRAY_G + b * GRAY_B;
+          if (satNow < 0.14 && lumaNow > 135 && rangeNow < 38) {
+            const t = Math.min(1, (lumaNow - 135) / 80);
+            const s = Math.min(1, (0.14 - satNow) / 0.14);
+            const w = t * s;
+            const boost = 0.3 + 0.5 * w;
+            r += (255 - r) * boost;
+            g += (255 - g) * boost;
+            b += (255 - b) * boost;
           }
         }
 
