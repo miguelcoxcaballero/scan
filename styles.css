@@ -452,6 +452,10 @@ body {
   object-fit: contain;
   pointer-events: none
 }
+#previewImg.preview-pending {
+  filter: grayscale(1) brightness(0.9);
+  opacity: .85
+}
 #previewImg:not([src]),
 #previewImg[src=""] { display: none }
 .layer-canvas {
@@ -606,6 +610,13 @@ body {
   background: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container)
 }
+.page-card.pending {
+  opacity: .55;
+  filter: grayscale(.65)
+}
+.page-card.pending .drag-handle,
+.page-card.pending .btn-del { opacity: .85 }
+.page-card.pending.active { opacity: .75 }
 .page-card.active .page-meta {
   color: var(--md-sys-color-on-primary-container);
   opacity: .8
@@ -613,6 +624,31 @@ body {
 .page-card.active .btn-del {
   color: var(--md-sys-color-on-primary-container);
   opacity: .7
+}
+.thumb-wrap {
+  position: relative;
+  width: 48px;
+  height: 64px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center
+}
+.page-spinner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  animation: spin-center 1s linear infinite;
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+  margin: 0;
+  pointer-events: none
+}
+@keyframes spin-center {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
 }
 .sortable-ghost { opacity: 0 !important }
 .sortable-drag {
@@ -623,29 +659,26 @@ body {
   cursor: grabbing !important;
   z-index: 9999 !important;
   border-color: transparent !important;
+  filter: none !important;
   transition: none !important
 }
 .sortable-chosen { z-index: 1 }
 .thumb {
-  width: 48px;
-  height: 64px;
+  width: 100%;
+  height: 100%;
   border-radius: 6px;
   background: var(--surface-2);
   object-fit: cover;
   border: 1px solid var(--outline);
-  flex-shrink: 0;
   pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center
+  display: block
 }
 .thumb-placeholder {
-  width: 48px;
-  height: 64px;
+  width: 100%;
+  height: 100%;
   border-radius: 6px;
   background: var(--surface-2);
   border: 1px solid var(--outline);
-  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center
@@ -867,8 +900,7 @@ body {
   .sidebar-toggle { display: flex }
   .fab-add { display: none }
   .page-card { border: 1px solid var(--outline-variant) }
-  .thumb { width: 56px; height: 80px }
-  .thumb-placeholder { width: 56px; height: 80px }
+  .thumb-wrap { width: 56px; height: 80px }
   #toolbar { padding: 0 8px; height: 56px }
   .doc-title { width: 160px; font-size: 16px; padding: 4px 8px }
   .btn-chip { padding: 0 10px; height: 34px }

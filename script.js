@@ -150,6 +150,7 @@
     theme: "dark",
     busy: 0
   };
+  const Q = { list: [], running: false, active: null };
 
   /* DOM */
   const E = {
@@ -230,7 +231,13 @@
   };
 
   const stageOffImmediate = () => { E.badge.style.display = "none"; };
-  const stageOn = t => { scheduleUi(() => stageOnImmediate(t)); };
+  const stageOn = t => {
+    scheduleUi(() => {
+      if (S.i < 0) { stageOnImmediate(t); return; }
+      const p = S.pages[S.i];
+      if (!p || !p.status || p.status !== "done") stageOnImmediate(t);
+    });
+  };
   const stageOff = () => { scheduleUi(() => stageOffImmediate()); };
 
   /* Dropdown */
@@ -414,6 +421,10 @@
         else if (S.i > evt.oldIndex && S.i <= evt.newIndex) S.i--;
         else if (S.i < evt.oldIndex && S.i >= evt.newIndex) S.i++;
 
+        if (Q.list.length || Q.active) {
+          Q.list = S.pages.filter(p => p && p.status === "queued");
+        }
+
         renderList();
       }
     });
@@ -518,6 +529,17 @@
   const toURL = (c, m = "image/jpeg", q = 0.92) =>
     new Promise(r => c.toBlob(b => r(URL.createObjectURL(b)), m, q));
 
+  const preloadUrl = url => new Promise(res => {
+    const img = new Image();
+    img.decoding = "async";
+    let done = false;
+    const finish = () => { if (!done) { done = true; res(); } };
+    img.onload = finish;
+    img.onerror = finish;
+    img.src = url;
+    if (img.decode) img.decode().then(finish).catch(finish);
+  });
+
   const resizeC = (c, w) => {
     const t = document.createElement("canvas");
     const r = c.height / c.width;
@@ -536,12 +558,26 @@
     c.height = 0;
   };
 
+  const releaseStageUrl = (p, force = false) => {
+    if (!p || !p.stageUrl) return;
+    if (!force && E.img && E.img.src === p.stageUrl) return;
+    URL.revokeObjectURL(p.stageUrl);
+    p.stageUrl = null;
+    p.stageLabel = "";
+    p.stageW = 0;
+    p.stageH = 0;
+  };
+
   const cleanupPage = p => {
     if (!p) return;
     if (p.displayUrl) { URL.revokeObjectURL(p.displayUrl); p.displayUrl = null; }
     if (p.thumbUrl) { URL.revokeObjectURL(p.thumbUrl); p.thumbUrl = null; }
+    if (p.previewUrl) { URL.revokeObjectURL(p.previewUrl); p.previewUrl = null; }
+    releaseStageUrl(p, true);
     if (p.src) releaseCanvas(p.src);
     if (p.processed) releaseCanvas(p.processed);
+    p.decodePromise = null;
+    p.file = null;
     p.src = null;
     p.processed = null;
   };
@@ -575,7 +611,15 @@
   const ensureSrcCanvas = async p => {
     if (p.src) return p.src;
     if (!p.file) return null;
-    const img = await loadImg(p.file);
+    let img = null;
+    if (p.decodePromise) {
+      try { img = await p.decodePromise; } catch (e) { img = null; }
+      p.decodePromise = null;
+    }
+    if (!img) {
+      try { img = await loadImg(p.file); } catch (e) { img = null; }
+    }
+    if (!img) return null;
     const c = (p.srcW && p.srcH) ? mkCvsSized(img, p.srcW, p.srcH) : mkCvs(img);
     p.src = c;
     if (!p.srcW || !p.srcH) {
@@ -597,37 +641,194 @@
     return { w: p.srcW || 0, h: p.srcH || 0 };
   };
 
+  const findNextPendingIndex = startIdx => {
+    const len = S.pages.length;
+    if (!len) return -1;
+    for (let off = 0; off < len; off++) {
+      const idx = (startIdx + off) % len;
+      const p = S.pages[idx];
+      if (p && p.status && p.status !== "done" && !p.cancelled) return idx;
+    }
+    return -1;
+  };
+
+  const removeFromQueue = id => {
+    const idx = Q.list.findIndex(p => p && p.id === id);
+    if (idx !== -1) Q.list.splice(idx, 1);
+  };
+
+  const enqueuePage = page => {
+    Q.list.push(page);
+    if (!Q.running) runQueue();
+  };
+
+  const runQueue = async () => {
+    if (Q.running) return;
+    Q.running = true;
+    S.busy = 1;
+    stageOn("Processing...");
+
+    while (Q.list.length) {
+      const page = Q.list.shift();
+      if (!page || page.cancelled) continue;
+      if (page.status === "done") continue;
+
+      Q.active = page;
+      page.status = "processing";
+      renderList();
+
+      try {
+        const pageIdx = S.pages.indexOf(page);
+        if (S.i === -1 && pageIdx !== -1) select(pageIdx);
+        const previewId = page.id;
+        const previewGuard = () => {
+          const sel = S.pages[S.i];
+          return !!sel && sel.id === previewId;
+        };
+        const previewTarget = page;
+        const src = await ensureSrcCanvas(page);
+        if (!src || page.cancelled) {
+          page.status = "error";
+          renderList();
+          if (page.cancelled || page.deferCleanup) cleanupPage(page);
+          continue;
+        }
+
+        if (!page.quad) {
+          page.quad = [
+            { x: 0, y: 0 },
+            { x: src.width, y: 0 },
+            { x: src.width, y: src.height },
+            { x: 0, y: src.height }
+          ];
+        }
+
+        const out = await process(src, { previewGuard, previewTarget });
+        if (page.cancelled || !S.pages.includes(page)) {
+          releaseCanvas(out.canvas);
+          if (page.cancelled || page.deferCleanup) cleanupPage(page);
+          continue;
+        }
+
+        const processed = out.canvas;
+        const thumbCanvas = resizeC(processed, 100);
+        const [displayUrl, thumbUrl] = await Promise.all([
+          toURL(processed, "image/jpeg", 0.92),
+          toURL(thumbCanvas, "image/jpeg", 0.85)
+        ]);
+        releaseCanvas(thumbCanvas);
+
+        setPageUrls(page, displayUrl, thumbUrl);
+        page.processed = processed;
+        page.processedW = processed.width;
+        page.processedH = processed.height;
+        page.yellowUsed = out.usedYellow;
+        page.marker = out.marker;
+        page.status = "done";
+        if (page.previewUrl) {
+          URL.revokeObjectURL(page.previewUrl);
+          page.previewUrl = null;
+        }
+        const wasSelected = S.pages[S.i] === page;
+        if (!wasSelected) releaseStageUrl(page, true);
+
+        dropCanvasesIfLowMem(page);
+        trimCanvasCache(page.id);
+
+        renderList();
+        if (wasSelected && !S.crop) {
+          const idx = S.pages.indexOf(page);
+          const nextIdx = findNextPendingIndex((idx + 1) || 0);
+          if (nextIdx !== -1) {
+            select(nextIdx);
+            releaseStageUrl(page, true);
+          } else {
+            scheduleUi(syncFinalView);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+        page.status = "error";
+        renderList();
+        toast("Error processing image");
+      }
+    }
+
+    Q.running = false;
+    Q.active = null;
+    S.busy = 0;
+    if (!Q.list.length) stageOff();
+    if (S.i >= 0 && !S.crop) scheduleUi(syncFinalView);
+  };
+
   /* Temp preview */
   let _tmpURL = null;
-  async function showTemp(c, label) {
+  async function showTemp(c, label, guard, previewTarget) {
     const u = await toURL(c, "image/jpeg", 0.9);
     const cw = c.width;
     const ch = c.height;
+    let prevStage = null;
+
+    if (previewTarget) {
+      prevStage = previewTarget.stageUrl;
+      previewTarget.stageUrl = u;
+      previewTarget.stageLabel = label;
+      previewTarget.stageW = cw;
+      previewTarget.stageH = ch;
+      updatePageThumb(previewTarget);
+    }
+
+    const isSelected = () => {
+      if (guard) {
+        if (guard()) return true;
+        if (previewTarget) {
+          const sel = S.pages[S.i];
+          return !!sel && sel.id === previewTarget.id;
+        }
+        return false;
+      }
+      if (previewTarget) {
+        const sel = S.pages[S.i];
+        return !!sel && sel.id === previewTarget.id;
+      }
+      return true;
+    };
 
     scheduleUi(async () => {
-      stageOnImmediate(label);
+      if (!isSelected()) {
+        if (!previewTarget || previewTarget.stageUrl !== u) {
+          URL.revokeObjectURL(u);
+        }
+        if (prevStage && prevStage !== u) URL.revokeObjectURL(prevStage);
+        return;
+      }
+
+      await preloadUrl(u);
+      if (!isSelected()) {
+        if (!previewTarget || previewTarget.stageUrl !== u) {
+          URL.revokeObjectURL(u);
+        }
+        if (prevStage && prevStage !== u) URL.revokeObjectURL(prevStage);
+        return;
+      }
+
       E.empty.style.display = "none";
       E.paper.style.display = "block";
       E.crop.style.display = "none";
       E.stencil.style.display = "none";
       E.img.style.display = "block";
+      E.img.classList.remove("preview-pending");
+      E.img.onload = null;
 
-      if (_tmpURL) { URL.revokeObjectURL(_tmpURL); _tmpURL = null; }
+      const prevTmp = _tmpURL;
       _tmpURL = u;
       E.img.src = u;
+      if (prevTmp && prevTmp !== u) { URL.revokeObjectURL(prevTmp); }
+      if (prevStage && prevStage !== u) URL.revokeObjectURL(prevStage);
 
-      const asp = cw / ch;
-      const pad = 40;
-      const aw = E.viewport.clientWidth - pad;
-      const ah = E.viewport.clientHeight - pad;
-
-      let w = aw;
-      let h = aw / asp;
-      if (h > ah) { h = ah; w = ah * asp; }
-
-      E.paper.style.width = w + "px";
-      E.paper.style.height = h + "px";
+      fitToSize(cw, ch);
       resetZ();
+      stageOnImmediate(label);
       await next();
     });
   }
@@ -662,7 +863,7 @@
   }
 
   /* File input & drag-drop */
-  const trig = () => { if (S.busy) return; isMobile() ? showSourceModal() : E.file.click(); };
+  const trig = () => { isMobile() ? showSourceModal() : E.file.click(); };
   E.addD.onclick = trig;
   E.addM.onclick = trig;
 
@@ -705,13 +906,13 @@
     document.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); }, false);
   });
 
-  E.viewport.addEventListener("dragenter", () => { if (!S.cv || S.busy) return; E.viewport.classList.add("drag-over"); });
-  E.viewport.addEventListener("dragover",  () => { if (!S.cv || S.busy) return; E.viewport.classList.add("drag-over"); });
+  E.viewport.addEventListener("dragenter", () => { if (!S.cv) return; E.viewport.classList.add("drag-over"); });
+  E.viewport.addEventListener("dragover",  () => { if (!S.cv) return; E.viewport.classList.add("drag-over"); });
   E.viewport.addEventListener("dragleave", e => { if (!E.viewport.contains(e.relatedTarget)) E.viewport.classList.remove("drag-over"); });
 
   E.viewport.addEventListener("drop", e => {
     E.viewport.classList.remove("drag-over");
-    if (!S.cv || S.busy) return;
+    if (!S.cv) return;
 
     const files = getImagesFromDT(e.dataTransfer);
     if (files.length > 0) {
@@ -726,13 +927,13 @@
     }
   });
 
-  E.landing.addEventListener("dragenter", () => { if (!S.cv || S.busy) return; E.landing.classList.add("drag-over"); });
-  E.landing.addEventListener("dragover",  () => { if (!S.cv || S.busy) return; E.landing.classList.add("drag-over"); });
+  E.landing.addEventListener("dragenter", () => { if (!S.cv) return; E.landing.classList.add("drag-over"); });
+  E.landing.addEventListener("dragover",  () => { if (!S.cv) return; E.landing.classList.add("drag-over"); });
   E.landing.addEventListener("dragleave", e => { if (!E.landing.contains(e.relatedTarget)) E.landing.classList.remove("drag-over"); });
 
   E.landing.addEventListener("drop", e => {
     E.landing.classList.remove("drag-over");
-    if (!S.cv || S.busy) return;
+    if (!S.cv) return;
 
     const files = getImagesFromDT(e.dataTransfer);
     if (files.length > 0) {
@@ -747,13 +948,15 @@
 
   /* Processing pipeline (delegates to /processing/*.js) */
   async function process(srcCanvas, opts = {}) {
+    const previewGuard = opts.previewGuard || null;
+    const previewTarget = opts.previewTarget || null;
     await refreshConfig();
     ALG.keys.forEach(k => ALG.cal[k].src = null);
 
-    await showTemp(srcCanvas, "Original");
+    await showTemp(srcCanvas, "Original", previewGuard, previewTarget);
 
     const yR = SP.detectYellow(srcCanvas);
-    await showTemp(yR.viz, "Yellow mask");
+    await showTemp(yR.viz, "Yellow mask", previewGuard, previewTarget);
 
     let usedYellow = !!(yR.contourPoints && yR.contourPoints.length > 100);
     if (opts.forceNoYellow) usedYellow = false;
@@ -768,22 +971,22 @@
       pageQuad = opts.overridePageQuad || SP.detectPageEdges(srcCanvas);
     }
 
-    await showTemp(SP.detectionViz(srcCanvas, corners, pageQuad, yR.contourPoints), "Detection");
+    await showTemp(SP.detectionViz(srcCanvas, corners, pageQuad, yR.contourPoints), "Detection", previewGuard, previewTarget);
 
     let wrp = null;
     if (usedYellow && corners && edges) {
       const grid = SP.optimizeGrid(edges, ALG.CFG.ROWS, ALG.CFG.COLS);
-      await showTemp(SP.meshViz(srcCanvas, grid, corners, edges), "Mesh");
+      await showTemp(SP.meshViz(srcCanvas, grid, corners, edges), "Mesh", previewGuard, previewTarget);
       wrp = SP.warpGrid(srcCanvas, grid);
     } else {
-      await showTemp(SP.detectionViz(srcCanvas, corners, pageQuad, yR.contourPoints), "Mesh");
+      await showTemp(SP.detectionViz(srcCanvas, corners, pageQuad, yR.contourPoints), "Mesh", previewGuard, previewTarget);
       wrp = SP.warpSimple(srcCanvas, pageQuad);
     }
 
-    await showTemp(wrp, "Warp");
+    await showTemp(wrp, "Warp", previewGuard, previewTarget);
 
     const col = SP.scanColors(wrp);
-    await showTemp(col.viz, "Color window");
+    await showTemp(col.viz, "Color window", previewGuard, previewTarget);
 
     let aligned = wrp;
     let marker = null;
@@ -796,7 +999,7 @@
     }
 
     const T = SP.buildTransform();
-    const showRecolorStep = async (label, canvas) => showTemp(canvas, label);
+    const showRecolorStep = async (label, canvas) => showTemp(canvas, label, previewGuard, previewTarget);
 
     let fin;
     if (T) fin = await SP.applyColorStepsAsync(aligned, T, showRecolorStep);
@@ -804,15 +1007,48 @@
 
     if (usedYellow) {
       fin = SP.restoreMargins(fin);
-      await showTemp(fin, "Recoloring: Restore margins");
+      await showTemp(fin, "Recoloring: Restore margins", previewGuard, previewTarget);
     }
 
-    await showTemp(fin, "Final");
+    await showTemp(fin, "Final", previewGuard, previewTarget);
 
     return { canvas: fin, pageQuad, marker, usedYellow };
   }
 
   /* Page list rendering */
+  const getThumbSrc = p => (p ? (p.thumbUrl || p.stageUrl || p.previewUrl) : null);
+
+  function updatePageThumb(p) {
+    if (!p) return;
+    const card = E.list.querySelector(`.page-card[data-id="${p.id}"]`);
+    if (!card) return;
+    const wrap = card.querySelector(".thumb-wrap");
+    if (!wrap) return;
+
+    const src = getThumbSrc(p);
+    let img = wrap.querySelector("img.thumb");
+    const placeholder = wrap.querySelector(".thumb-placeholder");
+
+    if (src) {
+      if (!img) {
+        img = document.createElement("img");
+        img.className = "thumb";
+        img.alt = "";
+        wrap.insertBefore(img, wrap.firstChild);
+      }
+      img.src = src;
+      if (placeholder) placeholder.remove();
+    } else {
+      if (img) img.remove();
+      if (!placeholder) {
+        const ph = document.createElement("div");
+        ph.className = "thumb-placeholder";
+        ph.innerHTML = '<span class="material-symbols-rounded">description</span>';
+        wrap.insertBefore(ph, wrap.firstChild);
+      }
+    }
+  }
+
   function renderList() {
     E.list.innerHTML = "";
     const n = S.pages.length;
@@ -827,16 +1063,25 @@
     const currentIdx = S.i;
     for (let i = 0; i < n; i++) {
       const p = pages[i];
+      const pending = p.status && p.status !== "done";
       const card = document.createElement("div");
-      card.className = "page-card" + (i === currentIdx ? " active" : "");
+      card.className = "page-card" +
+        (i === currentIdx ? " active" : "") +
+        (pending ? " pending" : "");
+      card.dataset.id = p.id;
 
-      const thumbHtml = p.thumbUrl
-        ? `<img src="${p.thumbUrl}" class="thumb" alt="">`
+      const thumbSrc = getThumbSrc(p);
+      const thumbHtml = thumbSrc
+        ? `<img src="${thumbSrc}" class="thumb" alt="">`
         : '<div class="thumb-placeholder"><span class="material-symbols-rounded">description</span></div>';
+      const spinnerHtml = p.status === "processing"
+        ? '<div class="page-spinner spinner" aria-hidden="true"></div>'
+        : '';
+      const thumbWrap = `<div class="thumb-wrap">${thumbHtml}${spinnerHtml}</div>`;
 
       card.innerHTML = `
         <span class="material-symbols-rounded drag-handle">drag_indicator</span>
-        ${thumbHtml}
+        ${thumbWrap}
         <div class="info">
           <div class="filename">${p.name}</div>
           <div class="page-meta">Page ${i + 1}</div>
@@ -853,7 +1098,15 @@
         e.stopPropagation();
 
         const removed = S.pages.splice(i, 1)[0];
-        cleanupPage(removed);
+        if (removed) {
+          removed.cancelled = true;
+          removeFromQueue(removed.id);
+          if (Q.active === removed || removed.status === "processing") {
+            removed.deferCleanup = true;
+          } else {
+            cleanupPage(removed);
+          }
+        }
 
         if (!S.pages.length) {
           S.i = -1;
@@ -927,13 +1180,7 @@
     _overlay(target, w, h);
   }
 
-  function fit() {
-    if (S.i < 0) return;
-
-    const p = S.pages[S.i];
-    const size = S.crop ? getSrcSize(p) : getProcessedSize(p);
-    const sw = size.w;
-    const sh = size.h;
+  function fitToSize(sw, sh) {
     if (!sw || !sh) return;
     const asp = sw / sh;
     const pad = 40;
@@ -946,6 +1193,17 @@
 
     E.paper.style.width = w + "px";
     E.paper.style.height = h + "px";
+  }
+
+  function fit() {
+    if (S.i < 0) return;
+
+    const p = S.pages[S.i];
+    const size = S.crop ? getSrcSize(p) : getProcessedSize(p);
+    const sw = size.w;
+    const sh = size.h;
+    if (!sw || !sh) return;
+    fitToSize(sw, sh);
 
     if (S.crop) {
       if (!p.src) {
@@ -968,6 +1226,8 @@
     if (!p) return;
     E.paper.style.display = "block";
     E.empty.style.display = "none";
+    E.img.classList.remove("preview-pending");
+    E.img.onload = null;
     if (p.displayUrl) {
       E.img.src = p.displayUrl;
       E.img.style.display = "block";
@@ -975,13 +1235,16 @@
       E.img.style.display = "none";
     }
     E.crop.style.display = "none";
-    $("cropBtn").disabled = false;
-    $("stencilBtn").disabled = false;
+    const ready = !p.status || p.status === "done";
+    $("cropBtn").disabled = !ready;
+    $("stencilBtn").disabled = !ready;
     $("stencilBtn").classList.toggle("active", !!S.stencil);
     E.stencil.style.display = S.stencil ? "block" : "none";
     const size = getProcessedSize(p);
     if (size.w && size.h) drawOverlay(stx, size.w, size.h);
     fit();
+    stageOffImmediate();
+    releaseStageUrl(p, true);
     if (MEM.low && !S.crop) dropCanvasesIfLowMem(p);
   }
 
@@ -990,13 +1253,57 @@
     if (i < 0 || i >= S.pages.length) return;
     if (S.crop) toggleCrop();
 
+    const prev = S.pages[S.i];
     S.i = i;
     renderList();
 
     const p = S.pages[i];
     E.paper.style.display = "block";
     E.empty.style.display = "none";
+    E.img.onload = null;
 
+    E.crop.style.display = "none";
+    const ready = !p.status || p.status === "done";
+    $("cropBtn").disabled = !ready;
+    $("stencilBtn").disabled = !ready;
+    $("stencilBtn").classList.toggle("active", !!S.stencil);
+
+    if (!ready) {
+      const stageSrc = p.stageUrl || p.previewUrl;
+      const useOriginal = !!(p.previewUrl && !p.stageUrl);
+      const sw = p.stageUrl ? p.stageW : (p.previewW || 0);
+      const sh = p.stageUrl ? p.stageH : (p.previewH || 0);
+      const loadingStage = stageSrc && stageSrc === p.stageUrl;
+      if (stageSrc && (!sw || !sh)) {
+        E.img.onload = () => {
+          const w = E.img.naturalWidth || E.img.width;
+          const h = E.img.naturalHeight || E.img.height;
+          if (loadingStage) { p.stageW = w; p.stageH = h; }
+          else { p.previewW = w; p.previewH = h; }
+          fitToSize(w, h);
+        };
+      }
+      if (stageSrc) {
+        E.img.src = stageSrc;
+        E.img.style.display = "block";
+      } else {
+        E.img.style.display = "none";
+      }
+      E.img.classList.toggle("preview-pending", useOriginal);
+      E.stencil.style.display = "none";
+      stageOnImmediate(p.stageLabel || (p.status === "processing" ? "Processing..." : "Queued..."));
+
+      if (sw && sh) {
+        fitToSize(sw, sh);
+      }
+      resetZ();
+      trimCanvasCache(p.id);
+      if (MEM.low && !S.crop) dropCanvasesIfLowMem(p);
+      if (prev && prev.status === "done") releaseStageUrl(prev, true);
+      return;
+    }
+
+    E.img.classList.remove("preview-pending");
     if (p.displayUrl) {
       E.img.src = p.displayUrl;
       E.img.style.display = "block";
@@ -1004,17 +1311,14 @@
       E.img.style.display = "none";
     }
 
-    E.crop.style.display = "none";
-    $("cropBtn").disabled = false;
-    $("stencilBtn").disabled = false;
-    $("stencilBtn").classList.toggle("active", !!S.stencil);
-    E.stencil.style.display = "block";
-
+    E.stencil.style.display = S.stencil ? "block" : "none";
     const size = getProcessedSize(p);
     if (size.w && size.h) drawOverlay(stx, size.w, size.h);
     fit();
+    stageOffImmediate();
     trimCanvasCache(p.id);
     if (MEM.low && !S.crop) dropCanvasesIfLowMem(p);
+    if (prev && prev.status === "done") releaseStageUrl(prev, true);
   }
 
   /* Crop mode */
@@ -1025,8 +1329,11 @@
     const auto = $("autoCropBtn");
     const stb = $("stencilBtn");
     const p = S.pages[S.i];
-
     if (!S.crop) {
+      if (p.status && p.status !== "done") {
+        toast("Processing...");
+        return;
+      }
       const src = await ensureSrcCanvas(p);
       if (!src) return;
       S.crop = 1;
@@ -1055,6 +1362,9 @@
       stb.style.display = "flex";
       E.stencil.style.display = "block";
 
+      p.status = "processing";
+      renderList();
+
       toast("Applying…");
 
       setTimeout(async () => {
@@ -1063,8 +1373,12 @@
         const out = await process(src, { overridePageQuad: p.quad, forceNoYellow: false });
         const processed = out.canvas;
 
-        const displayUrl = await toURL(processed, "image/jpeg", 0.92);
-        const thumbUrl = await toURL(resizeC(processed, 100), "image/jpeg", 0.85);
+        const thumbCanvas = resizeC(processed, 100);
+        const [displayUrl, thumbUrl] = await Promise.all([
+          toURL(processed, "image/jpeg", 0.92),
+          toURL(thumbCanvas, "image/jpeg", 0.85)
+        ]);
+        releaseCanvas(thumbCanvas);
 
         setPageUrls(p, displayUrl, thumbUrl);
         p.processed = processed;
@@ -1072,6 +1386,7 @@
         p.processedH = processed.height;
         p.yellowUsed = out.usedYellow;
         p.marker = out.marker;
+        p.status = "done";
 
         dropCanvasesIfLowMem(p);
         trimCanvasCache(p.id);
@@ -1088,6 +1403,11 @@
 
   function toggleStencil() {
     if (S.i < 0 || S.crop) return;
+    const p = S.pages[S.i];
+    if (p.status && p.status !== "done") {
+      toast("Processing...");
+      return;
+    }
     S.stencil = !S.stencil;
     $("stencilBtn").classList.toggle("active", !!S.stencil);
     const size = getProcessedSize(S.pages[S.i]);
@@ -1096,8 +1416,12 @@
 
   async function autoCrop() {
     if (S.i < 0) return;
-    toast("Detecting…");
     const p = S.pages[S.i];
+    if (p.status && p.status !== "done") {
+      toast("Processing...");
+      return;
+    }
+    toast("Detecting…");
     const src = p.src || await ensureSrcCanvas(p);
     if (!src) return;
     setTimeout(() => {
@@ -1344,63 +1668,71 @@
 
   /* handleFiles */
   async function handleFiles(files) {
-    if (!S.cv || !files || !files.length || S.busy) return;
+    if (!S.cv || !files || !files.length) return;
 
-    S.busy = 1;
-    E.empty.style.display = "none";
-    stageOn("Processing…");
-
+    const newPages = [];
     for (let fi = 0; fi < files.length; fi++) {
       const file = files[fi];
-      try {
-        const img = await loadImg(file);
-        const src = mkCvs(img);
-        const out = await process(src);
-        const processed = out.canvas;
+      if (!isImageFile(file)) continue;
 
-        const displayUrl = await toURL(processed, "image/jpeg", 0.92);
-        const thumbUrl = await toURL(resizeC(processed, 100), "image/jpeg", 0.85);
+      const page = {
+        id: Date.now() + Math.random(),
+        file,
+        name: file.name,
+        status: "queued",
+        previewUrl: URL.createObjectURL(file),
+        decodePromise: null,
+        src: null,
+        srcW: 0,
+        srcH: 0,
+        previewW: 0,
+        previewH: 0,
+        stageUrl: null,
+        stageLabel: "",
+        stageW: 0,
+        stageH: 0,
+        processed: null,
+        processedW: 0,
+        processedH: 0,
+        displayUrl: null,
+        thumbUrl: null,
+        quad: null,
+        marker: null,
+        yellowUsed: 0
+      };
 
-        const page = {
-          id: Date.now() + Math.random(),
-          file,
-          src,
-          srcW: src.width,
-          srcH: src.height,
-          processed,
-          processedW: processed.width,
-          processedH: processed.height,
-          displayUrl,
-          thumbUrl,
-          quad: out.pageQuad || [
-            { x: 0, y: 0 },
-            { x: src.width, y: 0 },
-            { x: src.width, y: src.height },
-            { x: 0, y: src.height }
-          ],
-          name: file.name,
-          marker: out.marker,
-          yellowUsed: out.usedYellow
-        };
-
-        S.pages.push(page);
-        dropCanvasesIfLowMem(page);
-      } catch (e) {
-        console.error(e);
-        toast("Error processing image");
+      if (!MEM.low) {
+        page.decodePromise = loadImg(file).then(img => {
+          if (img) {
+            page.previewW = img.naturalWidth || img.width;
+            page.previewH = img.naturalHeight || img.height;
+          }
+          return img;
+        }).catch(() => null);
       }
+
+      newPages.push(page);
     }
 
+    if (!newPages.length) return;
+
+    E.empty.style.display = "none";
+    S.pages.push(...newPages);
     renderList();
-    select(S.pages.length - 1);
     $("exportBtn").disabled = !S.pages.length;
-    stageOff();
-    scheduleUi(syncFinalView);
-    S.busy = 0;
+
+    newPages.forEach(enqueuePage);
   }
 
   // Expose for drag-drop triggers created above
   window.handleFiles = handleFiles;
 
 })();
+
+
+
+
+
+
+
 
