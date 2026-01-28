@@ -205,6 +205,17 @@
   };
   const isMobile = () => innerWidth <= 768;
 
+  const DEVICE_MEM_GB = typeof navigator.deviceMemory === "number" ? navigator.deviceMemory : 0;
+  const MEM = (() => {
+    const touch = typeof navigator.maxTouchPoints === "number" && navigator.maxTouchPoints > 0;
+    const low = isMobile() || (touch && innerWidth <= 1024) || (DEVICE_MEM_GB && DEVICE_MEM_GB <= 4);
+    const baseMax = DEVICE_MEM_GB && DEVICE_MEM_GB <= 2 ? 1600 : 2000;
+    return {
+      low,
+      maxDim: low ? baseMax : 0
+    };
+  })();
+
   // Cache toast element
   const toastEl = $("toast");
   const toast = t => {
@@ -461,19 +472,47 @@
   E.sourceModal.addEventListener("click", e => { if (e.target === E.sourceModal) hideSourceModal(); });
 
   /* Image helpers */
-  const loadImg = file => new Promise((res, rej) => {
+  const loadImg = (src, revokeOnLoad = false) => new Promise((res, rej) => {
     const img = new Image();
-    img.onload = () => res(img);
-    img.onerror = rej;
-    img.src = URL.createObjectURL(file);
+    img.decoding = "async";
+    let url = src;
+    if (src instanceof Blob) {
+      url = URL.createObjectURL(src);
+      revokeOnLoad = true;
+    }
+    img.onload = () => {
+      if (revokeOnLoad) URL.revokeObjectURL(url);
+      res(img);
+    };
+    img.onerror = e => {
+      if (revokeOnLoad) URL.revokeObjectURL(url);
+      rej(e);
+    };
+    img.src = url;
   });
 
-  const mkCvs = img => {
+  const mkCvsSized = (img, w, h) => {
     const c = document.createElement("canvas");
-    c.width = img.naturalWidth || img.width;
-    c.height = img.naturalHeight || img.height;
-    c.getContext("2d", { willReadFrequently: true }).drawImage(img, 0, 0);
+    c.width = w;
+    c.height = h;
+    const cx = c.getContext("2d", { willReadFrequently: true });
+    cx.imageSmoothingEnabled = true;
+    cx.imageSmoothingQuality = "high";
+    cx.drawImage(img, 0, 0, w, h);
     return c;
+  };
+
+  const mkCvs = (img, maxDim = MEM.maxDim) => {
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    let tw = w;
+    let th = h;
+    if (maxDim && Math.max(w, h) > maxDim) {
+      const s = maxDim / Math.max(w, h);
+      tw = Math.max(1, Math.round(w * s));
+      th = Math.max(1, Math.round(h * s));
+    }
+    return mkCvsSized(img, tw, th);
   };
 
   const toURL = (c, m = "image/jpeg", q = 0.92) =>
@@ -483,9 +522,79 @@
     const t = document.createElement("canvas");
     const r = c.height / c.width;
     t.width = w;
-    t.height = Math.round(w * r);
-    t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
+    t.height = Math.max(1, Math.round(w * r));
+    const tx = t.getContext("2d", { willReadFrequently: true });
+    tx.imageSmoothingEnabled = true;
+    tx.imageSmoothingQuality = "high";
+    tx.drawImage(c, 0, 0, t.width, t.height);
     return t;
+  };
+
+  const releaseCanvas = c => {
+    if (!c) return;
+    c.width = 0;
+    c.height = 0;
+  };
+
+  const cleanupPage = p => {
+    if (!p) return;
+    if (p.displayUrl) { URL.revokeObjectURL(p.displayUrl); p.displayUrl = null; }
+    if (p.thumbUrl) { URL.revokeObjectURL(p.thumbUrl); p.thumbUrl = null; }
+    if (p.src) releaseCanvas(p.src);
+    if (p.processed) releaseCanvas(p.processed);
+    p.src = null;
+    p.processed = null;
+  };
+
+  const setPageUrls = (p, displayUrl, thumbUrl) => {
+    if (p.displayUrl && p.displayUrl !== displayUrl) URL.revokeObjectURL(p.displayUrl);
+    if (p.thumbUrl && p.thumbUrl !== thumbUrl) URL.revokeObjectURL(p.thumbUrl);
+    p.displayUrl = displayUrl;
+    p.thumbUrl = thumbUrl;
+  };
+
+  const dropCanvasesIfLowMem = (p, keep = {}) => {
+    if (!MEM.low || !p) return;
+    if (!keep.src && p.src) { releaseCanvas(p.src); p.src = null; }
+    if (!keep.processed && p.processed) { releaseCanvas(p.processed); p.processed = null; }
+  };
+
+  const trimCanvasCache = keepId => {
+    if (!MEM.low) return;
+    const len = S.pages.length;
+    for (let i = 0; i < len; i++) {
+      const p = S.pages[i];
+      if (p.id === keepId) continue;
+      if (p.src) releaseCanvas(p.src);
+      if (p.processed) releaseCanvas(p.processed);
+      p.src = null;
+      p.processed = null;
+    }
+  };
+
+  const ensureSrcCanvas = async p => {
+    if (p.src) return p.src;
+    if (!p.file) return null;
+    const img = await loadImg(p.file);
+    const c = (p.srcW && p.srcH) ? mkCvsSized(img, p.srcW, p.srcH) : mkCvs(img);
+    p.src = c;
+    if (!p.srcW || !p.srcH) {
+      p.srcW = c.width;
+      p.srcH = c.height;
+    }
+    return c;
+  };
+
+  const getProcessedSize = p => {
+    if (!p) return { w: 0, h: 0 };
+    if (p.processed) return { w: p.processed.width, h: p.processed.height };
+    return { w: p.processedW || 0, h: p.processedH || 0 };
+  };
+
+  const getSrcSize = p => {
+    if (!p) return { w: 0, h: 0 };
+    if (p.src) return { w: p.src.width, h: p.src.height };
+    return { w: p.srcW || 0, h: p.srcH || 0 };
   };
 
   /* Temp preview */
@@ -743,7 +852,8 @@
         e.preventDefault();
         e.stopPropagation();
 
-        S.pages.splice(i, 1);
+        const removed = S.pages.splice(i, 1)[0];
+        cleanupPage(removed);
 
         if (!S.pages.length) {
           S.i = -1;
@@ -821,8 +931,10 @@
     if (S.i < 0) return;
 
     const p = S.pages[S.i];
-    const sw = S.crop ? p.src.width : p.processed.width;
-    const sh = S.crop ? p.src.height : p.processed.height;
+    const size = S.crop ? getSrcSize(p) : getProcessedSize(p);
+    const sw = size.w;
+    const sh = size.h;
+    if (!sw || !sh) return;
     const asp = sw / sh;
     const pad = 40;
     const aw = E.viewport.clientWidth - pad;
@@ -835,8 +947,17 @@
     E.paper.style.width = w + "px";
     E.paper.style.height = h + "px";
 
-    if (S.crop) drawCrop();
-    else drawOverlay(stx, p.processed.width, p.processed.height);
+    if (S.crop) {
+      if (!p.src) {
+        ensureSrcCanvas(p).then(() => {
+          if (S.crop && S.pages[S.i] === p) fit();
+        });
+        return;
+      }
+      drawCrop();
+    } else {
+      drawOverlay(stx, sw, sh);
+    }
 
     resetZ();
   }
@@ -858,8 +979,10 @@
     $("stencilBtn").disabled = false;
     $("stencilBtn").classList.toggle("active", !!S.stencil);
     E.stencil.style.display = S.stencil ? "block" : "none";
-    drawOverlay(stx, p.processed.width, p.processed.height);
+    const size = getProcessedSize(p);
+    if (size.w && size.h) drawOverlay(stx, size.w, size.h);
     fit();
+    if (MEM.low && !S.crop) dropCanvasesIfLowMem(p);
   }
 
   /* Selection */
@@ -887,21 +1010,27 @@
     $("stencilBtn").classList.toggle("active", !!S.stencil);
     E.stencil.style.display = "block";
 
-    drawOverlay(stx, p.processed.width, p.processed.height);
+    const size = getProcessedSize(p);
+    if (size.w && size.h) drawOverlay(stx, size.w, size.h);
     fit();
+    trimCanvasCache(p.id);
+    if (MEM.low && !S.crop) dropCanvasesIfLowMem(p);
   }
 
   /* Crop mode */
-  function toggleCrop() {
+  async function toggleCrop() {
     if (S.i < 0) return;
 
-    S.crop = !S.crop;
     const btn = $("cropBtn");
     const auto = $("autoCropBtn");
     const stb = $("stencilBtn");
     const p = S.pages[S.i];
 
-    if (S.crop) {
+    if (!S.crop) {
+      const src = await ensureSrcCanvas(p);
+      if (!src) return;
+      S.crop = 1;
+
       btn.innerHTML = `<span class="material-symbols-rounded">check</span><span class="label-text">Done</span>`;
       btn.classList.add("active");
 
@@ -912,11 +1041,13 @@
       E.stencil.style.display = "none";
       E.crop.style.display = "block";
 
-      E.crop.width = p.src.width;
-      E.crop.height = p.src.height;
+      E.crop.width = src.width;
+      E.crop.height = src.height;
 
       drawCrop();
     } else {
+      S.crop = 0;
+
       btn.innerHTML = `<span class="material-symbols-rounded">crop</span><span class="label-text">Crop</span>`;
       btn.classList.remove("active");
 
@@ -927,13 +1058,23 @@
       toast("Applying…");
 
       setTimeout(async () => {
-        const out = await process(p.src, { overridePageQuad: p.quad, forceNoYellow: false });
+        const src = p.src || await ensureSrcCanvas(p);
+        if (!src) return;
+        const out = await process(src, { overridePageQuad: p.quad, forceNoYellow: false });
+        const processed = out.canvas;
 
-        p.processed = out.canvas;
-        p.displayUrl = await toURL(out.canvas, "image/jpeg", 0.92);
-        p.thumbUrl = await toURL(resizeC(out.canvas, 100), "image/jpeg", 0.85);
+        const displayUrl = await toURL(processed, "image/jpeg", 0.92);
+        const thumbUrl = await toURL(resizeC(processed, 100), "image/jpeg", 0.85);
+
+        setPageUrls(p, displayUrl, thumbUrl);
+        p.processed = processed;
+        p.processedW = processed.width;
+        p.processedH = processed.height;
         p.yellowUsed = out.usedYellow;
         p.marker = out.marker;
+
+        dropCanvasesIfLowMem(p);
+        trimCanvasCache(p.id);
 
         select(S.i);
         renderList();
@@ -949,15 +1090,18 @@
     if (S.i < 0 || S.crop) return;
     S.stencil = !S.stencil;
     $("stencilBtn").classList.toggle("active", !!S.stencil);
-    drawOverlay(stx, S.pages[S.i].processed.width, S.pages[S.i].processed.height);
+    const size = getProcessedSize(S.pages[S.i]);
+    if (size.w && size.h) drawOverlay(stx, size.w, size.h);
   }
 
-  function autoCrop() {
+  async function autoCrop() {
     if (S.i < 0) return;
     toast("Detecting…");
+    const p = S.pages[S.i];
+    const src = p.src || await ensureSrcCanvas(p);
+    if (!src) return;
     setTimeout(() => {
-      const p = S.pages[S.i];
-      const q = SP.detectPageEdges(p.src);
+      const q = SP.detectPageEdges(src);
       if (q) { p.quad = q; drawCrop(); }
     }, 10);
   }
@@ -1029,6 +1173,7 @@
 
   function updateMagnifier(x, y) {
     const p = S.pages[S.i];
+    if (!p || !p.src) return;
     const size = 140;
     const halfSize = 70;
     const halfSizeZoom = 35; // size / 2 / zoom (where zoom = 2)
@@ -1155,15 +1300,31 @@
     const t = document.createElement("canvas");
     const tctx = t.getContext("2d", { willReadFrequently: true });
 
+    const drawPageImage = async p => {
+      if (p.processed) {
+        t.width = p.processed.width;
+        t.height = p.processed.height;
+        tctx.drawImage(p.processed, 0, 0);
+        return true;
+      }
+      if (!p.displayUrl) return false;
+      const img = await loadImg(p.displayUrl);
+      const w = p.processedW || img.naturalWidth || img.width;
+      const h = p.processedH || img.naturalHeight || img.height;
+      if (!w || !h) return false;
+      t.width = w;
+      t.height = h;
+      tctx.drawImage(img, 0, 0, w, h);
+      return true;
+    };
+
     const pagesLen = S.pages.length;
     for (let i = 0; i < pagesLen; i++) {
       if (i) doc.addPage();
 
       const p = S.pages[i];
-      t.width = p.processed.width;
-      t.height = p.processed.height;
-
-      tctx.drawImage(p.processed, 0, 0);
+      const ok = await drawPageImage(p);
+      if (!ok) continue;
 
       if (S.stencil || p.marker) drawOverlay(tctx, t.width, t.height, 1);
 
@@ -1200,10 +1361,15 @@
         const displayUrl = await toURL(processed, "image/jpeg", 0.92);
         const thumbUrl = await toURL(resizeC(processed, 100), "image/jpeg", 0.85);
 
-        S.pages.push({
+        const page = {
           id: Date.now() + Math.random(),
+          file,
           src,
+          srcW: src.width,
+          srcH: src.height,
           processed,
+          processedW: processed.width,
+          processedH: processed.height,
           displayUrl,
           thumbUrl,
           quad: out.pageQuad || [
@@ -1215,7 +1381,10 @@
           name: file.name,
           marker: out.marker,
           yellowUsed: out.usedYellow
-        });
+        };
+
+        S.pages.push(page);
+        dropCanvasesIfLowMem(page);
       } catch (e) {
         console.error(e);
         toast("Error processing image");
