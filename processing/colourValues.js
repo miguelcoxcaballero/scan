@@ -138,7 +138,18 @@
     }
 
     // Helper to check if a color is yellow (for detecting circle boundaries)
+    const targetYellow = SP.Config && SP.Config.TARGET_YELLOW
+      ? { r: SP.Config.TARGET_YELLOW.R, g: SP.Config.TARGET_YELLOW.G, b: SP.Config.TARGET_YELLOW.B }
+      : null;
+    const isTargetYellow = (r, g, b) => {
+      if (!targetYellow) return false;
+      const dr = Math.abs(r - targetYellow.r);
+      const dg = Math.abs(g - targetYellow.g);
+      const db = Math.abs(b - targetYellow.b);
+      return (dr + dg + db) <= 18;
+    };
     const isYellow = (r, g, b) => {
+      if (isTargetYellow(r, g, b)) return true;
       const mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
       const mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
       if (mx === 0) return false;
@@ -158,6 +169,91 @@
       if (h < 0) h += 360;
 
       return h >= 38 && h <= 78 && b < mx * 0.78;
+    };
+
+    // Build yellow mask and connected components for robustness
+    const buildYellowComponents = (useTargetOnly) => {
+      const mask = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++) {
+        const rowIdx = y * w;
+        for (let x = 0; x < w; x++) {
+          const i = (rowIdx + x) * 4;
+          const isY = useTargetOnly
+            ? isTargetYellow(id[i], id[i + 1], id[i + 2])
+            : isYellow(id[i], id[i + 1], id[i + 2]);
+          if (isY) mask[rowIdx + x] = 1;
+        }
+      }
+
+      const labels = new Int32Array(w * h);
+      const sizes = [0];
+      let label = 0;
+      const stack = [];
+      for (let y = 0; y < h; y++) {
+        const rowIdx = y * w;
+        for (let x = 0; x < w; x++) {
+          const idx = rowIdx + x;
+          if (!mask[idx] || labels[idx]) continue;
+          label++;
+          let count = 0;
+          labels[idx] = label;
+          stack.push(idx);
+          while (stack.length) {
+            const cur = stack.pop();
+            count++;
+            const cy = (cur / w) | 0;
+            const cx = cur - cy * w;
+            for (let dy = -1; dy <= 1; dy++) {
+              const ny = cy + dy;
+              if (ny < 0 || ny >= h) continue;
+              const nRow = ny * w;
+              for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue;
+                const nx = cx + dx;
+                if (nx < 0 || nx >= w) continue;
+                const ni = nRow + nx;
+                if (mask[ni] && !labels[ni]) {
+                  labels[ni] = label;
+                  stack.push(ni);
+                }
+              }
+            }
+          }
+          sizes[label] = count;
+        }
+      }
+
+      return { mask, labels, sizes };
+    };
+
+    const hasStrongYellow = sizes => {
+      for (let i = 1; i < sizes.length; i++) {
+        if (sizes[i] >= 20) return true;
+      }
+      return false;
+    };
+
+    let useTargetOnly = !!targetYellow;
+    let { mask: yMask, labels: yLabels, sizes: ySizes } = buildYellowComponents(useTargetOnly);
+    if (useTargetOnly && !hasStrongYellow(ySizes)) {
+      ({ mask: yMask, labels: yLabels, sizes: ySizes } = buildYellowComponents(false));
+      useTargetOnly = false;
+    }
+
+    const isStrongYellow = (x, y) => {
+      const idx = y * w + x;
+      if (!yMask[idx]) return false;
+      const label = yLabels[idx];
+      return label && ySizes[label] >= 20;
+    };
+
+    const findStrongYellowInColumnRange = (cx, y, radius = 10) => {
+      const minX = Math.max(0, (cx - radius) | 0);
+      const maxX = Math.min(w - 1, (cx + radius) | 0);
+      for (let x = minX; x <= maxX; x++) {
+        if (isStrongYellow(x, y)) return true;
+      }
+      return false;
     };
 
     // Sample color by detecting yellow boundary and averaging pixels inside
@@ -402,11 +498,210 @@
     vx.font = "bold 12px sans-serif";
     vx.fillText(`Colors: ${cnt}/5`, x1 + 10, y1 - 25);
 
+    let dotCenters = null;
+    let dotLineY = null;
+    let dotLineEdges = null;
+    if (cp && brd) {
+      const MAX_Y_SEARCH = Math.min(140, h);
+      const X_WINDOW = 12;
+      const MIN_BAND = 4;
+      const findYellowEdgeY = (cx, cy, dir) => {
+        for (let step = 1; step <= MAX_Y_SEARCH; step++) {
+          const y = (cy + dir * step) | 0;
+          if (y < 0 || y >= h) break;
+          for (let dx = -X_WINDOW; dx <= X_WINDOW; dx++) {
+            const x = (cx + dx) | 0;
+            if (x < 0 || x >= w) continue;
+            if (isStrongYellow(x, y)) return y;
+          }
+        }
+        return null;
+      };
+
+      const baseY = brd.row;
+      let lineY = baseY;
+      let sumMid = 0;
+      let cntMid = 0;
+      let sumTop = 0;
+      let sumBottom = 0;
+      let cntTop = 0;
+      let cntBottom = 0;
+
+      let minX = w, maxX = 0;
+      for (let i = 0; i < orderLen; i++) {
+        const n = order[i];
+        const pos = cp[n];
+        if (!pos) continue;
+        if (pos.x < minX) minX = pos.x;
+        if (pos.x > maxX) maxX = pos.x;
+      }
+      minX = Math.max(0, (minX - X_WINDOW) | 0);
+      maxX = Math.min(w - 1, (maxX + X_WINDOW) | 0);
+
+      let globalTop = null;
+      let globalBottom = null;
+      for (let y = 0; y < h; y++) {
+        let found = false;
+        for (let x = minX; x <= maxX; x++) {
+          if (isStrongYellow(x, y)) { found = true; break; }
+        }
+        if (found) {
+          if (globalTop === null) globalTop = y;
+          globalBottom = y;
+        }
+      }
+      if (globalTop === null) {
+        for (let y = 0; y < h; y++) {
+          let found = false;
+          for (let x = 0; x < w; x++) {
+            if (isStrongYellow(x, y)) { found = true; break; }
+          }
+          if (found) {
+            if (globalTop === null) globalTop = y;
+            globalBottom = y;
+          }
+        }
+      }
+
+      const edgeByColor = {};
+      for (let i = 0; i < orderLen; i++) {
+        const n = order[i];
+        const pos = cp[n];
+        if (!pos) continue;
+        let yTop = findYellowEdgeY(pos.x, baseY, -1);
+        let yBottom = findYellowEdgeY(pos.x, baseY, 1);
+        if (yTop === null && globalTop !== null) {
+          for (let y = baseY - 1; y >= globalTop; y--) {
+            if (findStrongYellowInColumnRange(pos.x, y, X_WINDOW)) { yTop = y; break; }
+          }
+        }
+        if (yBottom === null && globalBottom !== null) {
+          for (let y = baseY + 1; y <= globalBottom; y++) {
+            if (findStrongYellowInColumnRange(pos.x, y, X_WINDOW)) { yBottom = y; break; }
+          }
+        }
+        if (yTop === null && globalTop !== null) yTop = globalTop;
+        if (yBottom === null && globalBottom !== null) yBottom = globalBottom;
+        if (yTop !== null && yBottom !== null && (yBottom - yTop) < MIN_BAND) {
+          yTop = null;
+          yBottom = null;
+        }
+        edgeByColor[n] = { yTop, yBottom };
+        if (yTop !== null) { sumTop += baseY - yTop; cntTop++; }
+        if (yBottom !== null) { sumBottom += yBottom - baseY; cntBottom++; }
+        if (yTop !== null && yBottom !== null && yBottom > yTop && yBottom - yTop > 4) {
+          sumMid += (yTop + yBottom) * 0.5;
+          cntMid++;
+        }
+      }
+
+      const avgTop = cntTop ? sumTop / cntTop : null;
+      const avgBottom = cntBottom ? sumBottom / cntBottom : null;
+      if (cntMid) lineY = sumMid / cntMid;
+      else if (avgTop !== null && avgBottom !== null) {
+        lineY = baseY + (avgBottom - avgTop) * 0.5;
+      }
+      dotLineY = lineY;
+
+      const edgeByDot = {};
+      let sumCenter = 0;
+      let cntCenter = 0;
+      for (let i = 0; i < orderLen; i++) {
+        const n = order[i];
+        const pos = cp[n];
+        if (!pos) continue;
+
+        let yTop = findYellowEdgeY(pos.x, lineY, -1);
+        let yBottom = findYellowEdgeY(pos.x, lineY, 1);
+        if (yTop === null && globalTop !== null) {
+          for (let y = lineY - 1; y >= globalTop; y--) {
+            if (findStrongYellowInColumnRange(pos.x, y, X_WINDOW)) { yTop = y; break; }
+          }
+        }
+        if (yBottom === null && globalBottom !== null) {
+          for (let y = lineY + 1; y <= globalBottom; y++) {
+            if (findStrongYellowInColumnRange(pos.x, y, X_WINDOW)) { yBottom = y; break; }
+          }
+        }
+        if (yTop !== null && yBottom !== null && (yBottom - yTop) < MIN_BAND) {
+          yTop = null;
+          yBottom = null;
+        }
+        if (yTop === null && avgTop !== null) yTop = lineY - avgTop;
+        if (yBottom === null && avgBottom !== null) yBottom = lineY + avgBottom;
+        if (yTop === null && globalTop !== null) yTop = globalTop;
+        if (yBottom === null && globalBottom !== null) yBottom = globalBottom;
+
+        let centerY = null;
+        if (yTop !== null && yBottom !== null) {
+          centerY = (yTop + yBottom) * 0.5;
+        } else if (yTop !== null && avgBottom !== null) {
+          centerY = yTop + avgBottom;
+        } else if (yBottom !== null && avgTop !== null) {
+          centerY = yBottom - avgTop;
+        }
+        if (centerY === null) centerY = lineY;
+        sumCenter += centerY;
+        cntCenter++;
+
+        edgeByDot[n] = { yTop, yBottom };
+      }
+
+      if (cntCenter) lineY = sumCenter / cntCenter;
+      dotLineY = lineY;
+
+      dotCenters = {};
+      dotLineEdges = {};
+      for (let i = 0; i < orderLen; i++) {
+        const n = order[i];
+        const pos = cp[n];
+        if (!pos) continue;
+        const xAbs = x1 + pos.x;
+        const yAbs = y1 + lineY;
+        dotCenters[n] = { x: xAbs, y: yAbs };
+
+        const edge = edgeByDot[n] || {};
+        const yTop = edge.yTop ?? null;
+        const yBottom = edge.yBottom ?? null;
+
+        dotLineEdges[n] = {
+          x: xAbs,
+          y: yAbs,
+          topY: yTop !== null ? y1 + yTop : null,
+          bottomY: yBottom !== null ? y1 + yBottom : null
+        };
+      }
+    }
+
+    if (dotLineEdges) {
+      vx.strokeStyle = "#9ca3af";
+      vx.lineWidth = 7;
+      const keys = Object.keys(dotLineEdges);
+      for (let i = 0; i < keys.length; i++) {
+        const k = keys[i];
+        const e = dotLineEdges[k];
+        if (e.topY !== null) {
+          vx.beginPath();
+          vx.moveTo(e.x, e.y);
+          vx.lineTo(e.x, e.topY);
+          vx.stroke();
+        }
+        if (e.bottomY !== null) {
+          vx.beginPath();
+          vx.moveTo(e.x, e.y);
+          vx.lineTo(e.x, e.bottomY);
+          vx.stroke();
+        }
+      }
+    }
+
     return {
       found: cnt >= 5,
       blackPt: dc.black && cp ? { x: x1 + cp.black.x, y: y1 + brd.row } : null,
       count: cnt,
-      viz: vc
+      viz: vc,
+      dotCenters,
+      dotLineEdges
     };
   };
 

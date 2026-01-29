@@ -78,7 +78,7 @@
       w: 18 * PX_PER_CM,
       h: 27 * PX_PER_CM,
       x: 1.5 * PX_PER_CM,
-      y: 1.43 * PX_PER_CM,
+      y: 1.5 * PX_PER_CM,
       borderColor: stencilYellow,
       bgColor: "#fff",
       gapMM: 0.4
@@ -86,7 +86,7 @@
 
     MARKER_TARGET = {
       x: 10.375 * PX_PER_CM,
-      y: 27.675 * PX_PER_CM
+      y: 27.75 * PX_PER_CM
     };
 
     /* Algorithm object (shared with processing modules) */
@@ -95,8 +95,8 @@
         A4: [A4_W, A4_H],
         A4_CM: [config.A4_CM_W, config.A4_CM_H],
         PX_CM: PX_PER_CM,
-        STENCIL: { w: 18, h: 27, x: 1.5, y: 1.43 },
-        MARKER: { x: 10.375, y: 27.675 },
+        STENCIL: { w: 18, h: 27, x: 1.5, y: 1.5 },
+        MARKER: { x: 10.375, y: 27.75 },
         ROWS: 30,
         COLS: 21
       },
@@ -252,41 +252,7 @@
 
   /* Stencil download */
   function getStencilSVGString() {
-    const y = (STENCIL_CFG && STENCIL_CFG.borderColor) ? STENCIL_CFG.borderColor : "#ffde00";
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 29.7" width="21cm" height="29.7cm">
-      <defs>
-        <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="0.02"/>
-        </filter>
-        <pattern id="dotGrid" x="1.75" y="1.68" width="0.5" height="0.5" patternUnits="userSpaceOnUse">
-          <circle cx="0.25" cy="0.25" r="0.035" fill="#a8a8a8" filter="url(#softBlur)"/>
-        </pattern>
-      </defs>
-      <rect x="0" y="0" width="21" height="29.7" fill="white"/>
-      <rect x="1.5" y="1.43" width="18" height="27" rx="0.03" ry="0.03"
-            fill="none" stroke="${y}" stroke-width="0.06"/>
-      <rect x="1.75" y="1.68" width="17.5" height="25.5" fill="url(#dotGrid)"/>
-      <g stroke="${y}" stroke-width="0.06" fill="none">
-        <rect x="2.0" y="27.43" width="8.0" height="0.5" rx="0.03" ry="0.03"/>
-        <path d="M 2.5 27.43 v 0.5 M 3.0 27.43 v 0.5 M 3.5 27.43 v 0.5
-                 M 4.0 27.43 v 0.5 M 4.5 27.43 v 0.5 M 5.0 27.43 v 0.5
-                 M 5.5 27.43 v 0.5 M 6.0 27.43 v 0.5 M 6.5 27.43 v 0.5
-                 M 7.0 27.43 v 0.5 M 7.5 27.43 v 0.5 M 8.0 27.43 v 0.5
-                 M 8.5 27.43 v 0.5 M 9.0 27.43 v 0.5 M 9.5 27.43 v 0.5"/>
-        <rect x="11.0" y="27.43" width="8.0" height="0.5" rx="0.03" ry="0.03"/>
-        <path d="M 11.5 27.43 v 0.5 M 12.0 27.43 v 0.5 M 12.5 27.43 v 0.5
-                 M 13.0 27.43 v 0.5 M 13.5 27.43 v 0.5 M 14.0 27.43 v 0.5
-                 M 14.5 27.43 v 0.5 M 15.0 27.43 v 0.5 M 15.5 27.43 v 0.5
-                 M 16.0 27.43 v 0.5 M 16.5 27.43 v 0.5 M 17.0 27.43 v 0.5
-                 M 17.5 27.43 v 0.5 M 18.0 27.43 v 0.5 M 18.5 27.43 v 0.5"/>
-      </g>
-      <g stroke="${y}" stroke-width="0.06">
-        <circle cx="10.125" cy="27.68" r="0.125" fill="#ff0000"/>
-        <circle cx="10.375" cy="27.68" r="0.125" fill="#000000"/>
-        <circle cx="10.625" cy="27.68" r="0.125" fill="#0000ff"/>
-        <circle cx="10.875" cy="27.68" r="0.125" fill="#6eff12"/>
-      </g>
-    </svg>`;
+    return STENCIL_BG_SVG;
   }
 
   window.downloadStencil = async (type) => {
@@ -529,17 +495,6 @@
   const toURL = (c, m = "image/jpeg", q = 0.92) =>
     new Promise(r => c.toBlob(b => r(URL.createObjectURL(b)), m, q));
 
-  const preloadUrl = url => new Promise(res => {
-    const img = new Image();
-    img.decoding = "async";
-    let done = false;
-    const finish = () => { if (!done) { done = true; res(); } };
-    img.onload = finish;
-    img.onerror = finish;
-    img.src = url;
-    if (img.decode) img.decode().then(finish).catch(finish);
-  });
-
   const resizeC = (c, w) => {
     const t = document.createElement("canvas");
     const r = c.height / c.width;
@@ -567,12 +522,19 @@
     p.stageW = 0;
     p.stageH = 0;
   };
+  const releaseStencilUrl = p => {
+    if (!p || !p.stencilUrl) return;
+    URL.revokeObjectURL(p.stencilUrl);
+    p.stencilUrl = null;
+  };
 
   const cleanupPage = p => {
     if (!p) return;
     if (p.displayUrl) { URL.revokeObjectURL(p.displayUrl); p.displayUrl = null; }
     if (p.thumbUrl) { URL.revokeObjectURL(p.thumbUrl); p.thumbUrl = null; }
     if (p.previewUrl) { URL.revokeObjectURL(p.previewUrl); p.previewUrl = null; }
+    releaseStencilUrl(p);
+    releaseStencilCache(p.id);
     releaseStageUrl(p, true);
     if (p.src) releaseCanvas(p.src);
     if (p.processed) releaseCanvas(p.processed);
@@ -591,6 +553,9 @@
 
   const dropCanvasesIfLowMem = (p, keep = {}) => {
     if (!MEM.low || !p) return;
+    if (p.status === "processing" || p === Q.active) return;
+    const selected = S.pages[S.i] === p;
+    if (selected && S.stencil) return;
     if (!keep.src && p.src) { releaseCanvas(p.src); p.src = null; }
     if (!keep.processed && p.processed) { releaseCanvas(p.processed); p.processed = null; }
   };
@@ -601,6 +566,7 @@
     for (let i = 0; i < len; i++) {
       const p = S.pages[i];
       if (p.id === keepId) continue;
+      if (p.status === "processing" || p === Q.active) continue;
       if (p.src) releaseCanvas(p.src);
       if (p.processed) releaseCanvas(p.processed);
       p.src = null;
@@ -716,9 +682,11 @@
           toURL(processed, "image/jpeg", 0.92),
           toURL(thumbCanvas, "image/jpeg", 0.85)
         ]);
-        releaseCanvas(thumbCanvas);
+          releaseCanvas(thumbCanvas);
 
-        setPageUrls(page, displayUrl, thumbUrl);
+          releaseStencilUrl(page);
+          releaseStencilCache(page.id);
+          setPageUrls(page, displayUrl, thumbUrl);
         page.processed = processed;
         page.processedW = processed.width;
         page.processedH = processed.height;
@@ -803,38 +771,51 @@
         return;
       }
 
-      await preloadUrl(u);
-      if (!isSelected()) {
-        if (!previewTarget || previewTarget.stageUrl !== u) {
-          URL.revokeObjectURL(u);
-        }
-        if (prevStage && prevStage !== u) URL.revokeObjectURL(prevStage);
-        return;
-      }
-
       E.empty.style.display = "none";
       E.paper.style.display = "block";
       E.crop.style.display = "none";
       E.stencil.style.display = "none";
       E.img.style.display = "block";
       E.img.classList.remove("preview-pending");
-      E.img.onload = null;
 
       const prevTmp = _tmpURL;
       _tmpURL = u;
-      E.img.src = u;
-      if (prevTmp && prevTmp !== u) { URL.revokeObjectURL(prevTmp); }
-      if (prevStage && prevStage !== u) URL.revokeObjectURL(prevStage);
 
-      fitToSize(cw, ch);
-      resetZ();
-      stageOnImmediate(label);
+      let handled = false;
+      const finish = (ok) => {
+        if (handled) return;
+        handled = true;
+        if (!isSelected()) {
+          if (!previewTarget || previewTarget.stageUrl !== u) {
+            URL.revokeObjectURL(u);
+          }
+          if (prevStage && prevStage !== u) URL.revokeObjectURL(prevStage);
+          return;
+        }
+        if (ok) {
+          fitToSize(cw, ch);
+          resetZ();
+          stageOnImmediate(label);
+          if (prevTmp && prevTmp !== u) URL.revokeObjectURL(prevTmp);
+          if (prevStage && prevStage !== u) URL.revokeObjectURL(prevStage);
+        } else {
+          if (!previewTarget || previewTarget.stageUrl !== u) {
+            URL.revokeObjectURL(u);
+          }
+          if (prevStage && prevStage !== u) URL.revokeObjectURL(prevStage);
+        }
+      };
+      E.img.onload = () => finish(true);
+      E.img.onerror = () => finish(false);
+
+      E.img.src = u;
+      if (E.img.complete && E.img.naturalWidth) finish(true);
       await next();
     });
   }
 
   /* Initialize app when both config and OpenCV are ready */
-  async function initializeApp() {
+    async function initializeApp() {
     // Wait for config to load
     while (!configReady) {
       await new Promise(r => setTimeout(r, 50));
@@ -848,10 +829,11 @@
     const sys = matchMedia("(prefers-color-scheme: dark)").matches;
     setTheme(localStorage.getItem("theme") || (sys ? "dark" : "light"));
 
-    setupSortable();
+      setupSortable();
+      ensureStencilAssets().catch(() => {});
 
-    new ResizeObserver(() => { if (S.i >= 0) fit(); }).observe(E.viewport);
-  }
+      new ResizeObserver(() => { if (S.i >= 0) fit(); }).observe(E.viewport);
+    }
 
   /* CV ready */
   window.__cvReady = () => {
@@ -957,6 +939,7 @@
 
     const yR = SP.detectYellow(srcCanvas);
     await showTemp(yR.viz, "Yellow mask", previewGuard, previewTarget);
+    releaseCanvas(yR.viz);
 
     let usedYellow = !!(yR.contourPoints && yR.contourPoints.length > 100);
     if (opts.forceNoYellow) usedYellow = false;
@@ -971,28 +954,48 @@
       pageQuad = opts.overridePageQuad || SP.detectPageEdges(srcCanvas);
     }
 
-    await showTemp(SP.detectionViz(srcCanvas, corners, pageQuad, yR.contourPoints), "Detection", previewGuard, previewTarget);
+    const detViz = SP.detectionViz(srcCanvas, corners, pageQuad, yR.contourPoints);
+    await showTemp(detViz, "Detection", previewGuard, previewTarget);
+    releaseCanvas(detViz);
 
     let wrp = null;
     if (usedYellow && corners && edges) {
       const grid = SP.optimizeGrid(edges, ALG.CFG.ROWS, ALG.CFG.COLS);
-      await showTemp(SP.meshViz(srcCanvas, grid, corners, edges), "Mesh", previewGuard, previewTarget);
+      const meshViz = SP.meshViz(srcCanvas, grid, corners, edges);
+      await showTemp(meshViz, "Mesh", previewGuard, previewTarget);
+      releaseCanvas(meshViz);
       wrp = SP.warpGrid(srcCanvas, grid);
     } else {
-      await showTemp(SP.detectionViz(srcCanvas, corners, pageQuad, yR.contourPoints), "Mesh", previewGuard, previewTarget);
+      const meshViz = SP.detectionViz(srcCanvas, corners, pageQuad, yR.contourPoints);
+      await showTemp(meshViz, "Mesh", previewGuard, previewTarget);
+      releaseCanvas(meshViz);
       wrp = SP.warpSimple(srcCanvas, pageQuad);
     }
 
     await showTemp(wrp, "Warp", previewGuard, previewTarget);
 
     const col = SP.scanColors(wrp);
+    let dotCenters = cloneDotCenters(col.dotCenters);
+    let dotLineEdges = cloneDotLineEdges(col.dotLineEdges);
     await showTemp(col.viz, "Color window", previewGuard, previewTarget);
+    releaseCanvas(col.viz);
 
     let aligned = wrp;
     let marker = null;
 
     if (!usedYellow && col.found && col.blackPt) {
-      aligned = SP.alignMarker(wrp, SP.findBlackBlob(wrp, col.blackPt));
+      const blob = SP.findBlackBlob(wrp, col.blackPt);
+      aligned = SP.alignMarker(wrp, blob);
+      if (dotCenters) {
+        const dx = MARKER_TARGET.x - blob.x;
+        const dy = MARKER_TARGET.y - blob.y;
+        shiftDotCenters(dotCenters, dx, dy);
+      }
+      if (dotLineEdges) {
+        const dx = MARKER_TARGET.x - blob.x;
+        const dy = MARKER_TARGET.y - blob.y;
+        shiftDotLineEdges(dotLineEdges, dx, dy);
+      }
       marker = { x: MARKER_TARGET.x, y: MARKER_TARGET.y };
     } else if (usedYellow) {
       marker = { x: MARKER_TARGET.x, y: MARKER_TARGET.y };
@@ -1008,6 +1011,29 @@
     if (usedYellow) {
       fin = SP.restoreMargins(fin);
       await showTemp(fin, "Recoloring: Restore margins", previewGuard, previewTarget);
+      if (dotCenters) mapDotsThroughRestore(dotCenters);
+      if (dotLineEdges) mapLineEdgesThroughRestore(dotLineEdges);
+    }
+
+    let remeshControls = null;
+    if (dotCenters && typeof SP.remeshStencil === "function") {
+      remeshControls = buildRemeshControls(dotCenters);
+      if (remeshControls) {
+        const remeshed = SP.remeshStencil(fin, remeshControls);
+        if (remeshed && remeshed !== fin) {
+          await showTemp(remeshed, "Remesh", previewGuard, previewTarget);
+          releaseCanvas(fin);
+          fin = remeshed;
+          remeshDotData(dotCenters, dotLineEdges, remeshControls);
+        }
+      }
+    }
+
+    if (fin && typeof SP.removeEdgeYellowZones === "function") {
+      SP.removeEdgeYellowZones(fin);
+    }
+    if (fin && typeof SP.removeDotGrid === "function") {
+      SP.removeDotGrid(fin);
     }
 
     await showTemp(fin, "Final", previewGuard, previewTarget);
@@ -1131,54 +1157,489 @@
     }
   }
 
-  /* Overlay */
-  function _overlay(c, w, h) {
-    if (!S.stencil || !SP.Dims) return;
+  /* Stencil compositing */
+  const STENCIL_BG_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 29.7" width="21cm" height="29.7cm">
+      <defs>
+        <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="0.02"/>
+        </filter>
+        <pattern id="dotGrid" x="1.75" y="1.68" width="0.5" height="0.5" patternUnits="userSpaceOnUse">
+          <circle cx="0.25" cy="0.25" r="0.035" fill="#a8a8a8" filter="url(#softBlur)"/>
+        </pattern>
+      </defs>
+      <rect x="0" y="0" width="21" height="29.7" fill="white"/>
+      <rect x="1.5" y="1.43" width="18" height="27" rx="0.03" ry="0.03"
+            fill="none" stroke="#f0db4c" stroke-width="0.06"/>
+      <rect x="1.75" y="1.68" width="17.5" height="25.5" fill="url(#dotGrid)"/>
+      <g stroke="#f0db4c" stroke-width="0.06" fill="none">
+        <rect x="2.0" y="27.43" width="8.0" height="0.5" rx="0.03" ry="0.03"/>
+        <path d="M 2.5 27.43 v 0.5 M 3.0 27.43 v 0.5 M 3.5 27.43 v 0.5
+                 M 4.0 27.43 v 0.5 M 4.5 27.43 v 0.5 M 5.0 27.43 v 0.5
+                 M 5.5 27.43 v 0.5 M 6.0 27.43 v 0.5 M 6.5 27.43 v 0.5
+                 M 7.0 27.43 v 0.5 M 7.5 27.43 v 0.5 M 8.0 27.43 v 0.5
+                 M 8.5 27.43 v 0.5 M 9.0 27.43 v 0.5 M 9.5 27.43 v 0.5"/>
+        <rect x="11.0" y="27.43" width="8.0" height="0.5" rx="0.03" ry="0.03"/>
+        <path d="M 11.5 27.43 v 0.5 M 12.0 27.43 v 0.5 M 12.5 27.43 v 0.5
+                 M 13.0 27.43 v 0.5 M 13.5 27.43 v 0.5 M 14.0 27.43 v 0.5
+                 M 14.5 27.43 v 0.5 M 15.0 27.43 v 0.5 M 15.5 27.43 v 0.5
+                 M 16.0 27.43 v 0.5 M 16.5 27.43 v 0.5 M 17.0 27.43 v 0.5
+                 M 17.5 27.43 v 0.5 M 18.0 27.43 v 0.5 M 18.5 27.43 v 0.5"/>
+      </g>
+      <g stroke="#f0db4c" stroke-width="0.06">
+        <circle cx="10.125" cy="27.68" r="0.125" fill="#ff0000"/>
+        <circle cx="10.375" cy="27.68" r="0.125" fill="#000000"/>
+        <circle cx="10.625" cy="27.68" r="0.125" fill="#0000ff"/>
+        <circle cx="10.875" cy="27.68" r="0.125" fill="#6eff12"/>
+      </g>
+    </svg>`;
 
-    const scaleX = w / SP.Dims.A4_W;
-    const scaleY = h / SP.Dims.A4_H;
+  const STENCIL_OVERLAY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 29.7" width="21cm" height="29.7cm">
+  <rect x="1.5" y="1.43" width="18" height="27" rx="0.03" ry="0.03"
+        fill="none" stroke="#f0db4c" stroke-width="0.06"/>
+  <g stroke="#f0db4c" stroke-width="0.06" fill="none">
+    <rect x="2.0" y="27.43" width="8.0" height="0.5" rx="0.03" ry="0.03"/>
+    <path d="M 2.5 27.43 v 0.5 M 3.0 27.43 v 0.5 M 3.5 27.43 v 0.5
+             M 4.0 27.43 v 0.5 M 4.5 27.43 v 0.5 M 5.0 27.43 v 0.5
+             M 5.5 27.43 v 0.5 M 6.0 27.43 v 0.5 M 6.5 27.43 v 0.5
+             M 7.0 27.43 v 0.5 M 7.5 27.43 v 0.5 M 8.0 27.43 v 0.5
+             M 8.5 27.43 v 0.5 M 9.0 27.43 v 0.5 M 9.5 27.43 v 0.5"/>
+    <rect x="11.0" y="27.43" width="8.0" height="0.5" rx="0.03" ry="0.03"/>
+    <path d="M 11.5 27.43 v 0.5 M 12.0 27.43 v 0.5 M 12.5 27.43 v 0.5
+             M 13.0 27.43 v 0.5 M 13.5 27.43 v 0.5 M 14.0 27.43 v 0.5
+             M 14.5 27.43 v 0.5 M 15.0 27.43 v 0.5 M 15.5 27.43 v 0.5
+             M 16.0 27.43 v 0.5 M 16.5 27.43 v 0.5 M 17.0 27.43 v 0.5
+             M 17.5 27.43 v 0.5 M 18.0 27.43 v 0.5 M 18.5 27.43 v 0.5"/>
+  </g>
+  <g stroke="#f0db4c" stroke-width="0.06">
+    <circle cx="10.125" cy="27.68" r="0.125" fill="#ff0000"/>
+    <circle cx="10.375" cy="27.68" r="0.125" fill="#000000"/>
+    <circle cx="10.625" cy="27.68" r="0.125" fill="#0000ff"/>
+    <circle cx="10.875" cy="27.68" r="0.125" fill="#6eff12"/>
+  </g>
+</svg>`;
 
-    const x = STENCIL_CFG.x * scaleX;
-    const y = STENCIL_CFG.y * scaleY;
-    const W = STENCIL_CFG.w * scaleX;
-    const H = STENCIL_CFG.h * scaleY;
+  let stencilBgImg = null;
+  let stencilOverlayImg = null;
+  const svgToImg = svg => new Promise((res, rej) => {
+    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      res(img);
+    };
+    img.onerror = e => {
+      URL.revokeObjectURL(url);
+      rej(e);
+    };
+    img.src = url;
+  });
 
-    const lw = 8 * scaleX;
-    const STENCIL_GAP_CM = STENCIL_CFG.gapMM / 10;
-    const gap = STENCIL_GAP_CM * SP.Dims.PX_PER_CM * scaleX;
-    const off = lw * 0.5 + gap;
+  const ensureStencilAssets = async () => {
+    if (!stencilBgImg) stencilBgImg = await svgToImg(STENCIL_BG_SVG);
+    if (!stencilOverlayImg) stencilOverlayImg = await svgToImg(STENCIL_OVERLAY_SVG);
+    return { bg: stencilBgImg, overlay: stencilOverlayImg };
+  };
 
-    c.fillStyle = STENCIL_CFG.bgColor;
-    c.fillRect(0, 0, w, h);
+  const WHITE_ALPHA_THRESH = 250;
+  const makeWhiteTransparentCanvas = src => {
+    const c = document.createElement("canvas");
+    c.width = src.width;
+    c.height = src.height;
+    const cx = c.getContext("2d", { willReadFrequently: true });
+    cx.drawImage(src, 0, 0);
+    const id = cx.getImageData(0, 0, c.width, c.height);
+    const d = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] >= WHITE_ALPHA_THRESH && d[i + 1] >= WHITE_ALPHA_THRESH && d[i + 2] >= WHITE_ALPHA_THRESH) {
+        d[i + 3] = 0;
+      }
+    }
+    cx.putImageData(id, 0, 0);
+    return c;
+  };
 
-    c.globalCompositeOperation = "destination-out";
-    c.fillRect(x + off, y + off, W - 2 * off, H - 2 * off);
+  const applyStencilToContext = async (ctx, w, h, srcCanvas) => {
+    const { bg, overlay } = await ensureStencilAssets();
+    const transparent = makeWhiteTransparentCanvas(srcCanvas);
+    const PX_CM = (SP.Dims && SP.Dims.PX_PER_CM) || (SP.ALG && SP.ALG.CFG && SP.ALG.CFG.PX_CM) || 0;
+    const yShift = PX_CM ? -0.1 * PX_CM : 0;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(bg, 0, 0, w, h);
+    ctx.drawImage(transparent, 0, yShift, w, h);
+    ctx.drawImage(overlay, 0, 0, w, h);
+    releaseCanvas(transparent);
+  };
 
-    c.globalCompositeOperation = "source-over";
-    c.strokeStyle = STENCIL_CFG.borderColor;
-    c.lineWidth = lw;
-    c.strokeRect(x, y, W, H);
-  }
+  let stencilSeq = 0;
+  let stencilCache = { id: null, canvas: null };
+  const releaseStencilCache = (id = null) => {
+    if (!stencilCache.canvas) return;
+    if (id === null || stencilCache.id === id) {
+      releaseCanvas(stencilCache.canvas);
+      stencilCache = { id: null, canvas: null };
+    }
+  };
+  const applyStencilPreview = async p => {
+    if (!p) return;
+    const seq = ++stencilSeq;
+    let srcCanvas = p.processed;
+    let tmpCanvas = null;
+    if (!srcCanvas && p.displayUrl) {
+      const img = await loadImg(p.displayUrl);
+      const w = p.processedW || img.naturalWidth || img.width;
+      const h = p.processedH || img.naturalHeight || img.height;
+      if (!w || !h) return;
+      tmpCanvas = mkCvsSized(img, w, h);
+      srcCanvas = tmpCanvas;
+    }
+    if (!srcCanvas) return;
+    if (seq !== stencilSeq) return;
+    if (!S.stencil || S.pages[S.i] !== p) { if (tmpCanvas) releaseCanvas(tmpCanvas); return; }
+    if (MEM.low) {
+      E.stencil.width = srcCanvas.width;
+      E.stencil.height = srcCanvas.height;
+      const sctx = E.stencil.getContext("2d", { willReadFrequently: true });
+      await applyStencilToContext(sctx, E.stencil.width, E.stencil.height, srcCanvas);
+    } else {
+      let composite = stencilCache.canvas;
+      if (!composite || stencilCache.id !== p.id ||
+          composite.width !== srcCanvas.width || composite.height !== srcCanvas.height) {
+        if (composite) releaseCanvas(composite);
+        composite = document.createElement("canvas");
+        composite.width = srcCanvas.width;
+        composite.height = srcCanvas.height;
+        const cctx = composite.getContext("2d", { willReadFrequently: true });
+        await applyStencilToContext(cctx, composite.width, composite.height, srcCanvas);
+        stencilCache = { id: p.id, canvas: composite };
+      }
+      E.stencil.width = composite.width;
+      E.stencil.height = composite.height;
+      const sctx = E.stencil.getContext("2d", { willReadFrequently: true });
+      sctx.clearRect(0, 0, E.stencil.width, E.stencil.height);
+      sctx.drawImage(composite, 0, 0);
+    }
+    if (tmpCanvas) releaseCanvas(tmpCanvas);
+    if (seq !== stencilSeq || !S.stencil || S.pages[S.i] !== p) return;
+    E.img.style.display = "none";
+    E.stencil.style.display = "block";
+  };
 
-  function drawOverlay(target, w, h, exportMode = 0) {
-    if (exportMode) {
-      const o = document.createElement("canvas");
-      o.width = w;
-      o.height = h;
-      const oc = o.getContext("2d", { willReadFrequently: true });
-      _overlay(oc, w, h);
-      target.drawImage(o, 0, 0);
-      return;
+  const cloneDotCenters = centers => {
+    if (!centers) return null;
+    const out = {};
+    const keys = Object.keys(centers);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const p = centers[k];
+      out[k] = { x: p.x, y: p.y };
+    }
+    return out;
+  };
+
+  const cloneDotLineEdges = edges => {
+    if (!edges) return null;
+    const out = {};
+    const keys = Object.keys(edges);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const e = edges[k];
+      out[k] = {
+        x: e.x,
+        y: e.y,
+        topY: e.topY,
+        bottomY: e.bottomY
+      };
+    }
+    return out;
+  };
+
+  const shiftDotCenters = (centers, dx, dy) => {
+    if (!centers) return centers;
+    const keys = Object.keys(centers);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const p = centers[k];
+      p.x += dx;
+      p.y += dy;
+    }
+    return centers;
+  };
+
+  const shiftDotLineEdges = (edges, dx, dy) => {
+    if (!edges) return edges;
+    const keys = Object.keys(edges);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const e = edges[k];
+      e.x += dx;
+      e.y += dy;
+      if (e.topY !== null) e.topY += dy;
+      if (e.bottomY !== null) e.bottomY += dy;
+    }
+    return edges;
+  };
+
+  const getRestoreTransform = () => {
+    if (!SP.Config || !ALG || !SP.Dims) return null;
+    const PX_CM = SP.Dims.PX_PER_CM;
+    const sx = (ALG.CFG.STENCIL.x * PX_CM) | 0;
+    const sy = (ALG.CFG.STENCIL.y * PX_CM) | 0;
+    const sw = (ALG.CFG.STENCIL.w * PX_CM) | 0;
+    const sh = (ALG.CFG.STENCIL.h * PX_CM) | 0;
+    const sc = SP.Config.RENDER_SCALE;
+    const cW = (sw * sc + 0.5) | 0;
+    const cH = (sh * sc + 0.5) | 0;
+    const dX = (sx - (cW - sw) * 0.5) | 0;
+    const dY = (sy - (cH - sh) * 0.5) | 0;
+    return {
+      sx,
+      sy,
+      sw,
+      sh,
+      dX,
+      dY,
+      sX: cW / sw,
+      sY: cH / sh
+    };
+  };
+
+  const mapPointThroughRestore = (pt, t) => {
+    if (!pt || !t) return pt;
+    let x = pt.x;
+    let y = pt.y;
+    if (x >= t.sx && x <= t.sx + t.sw && y >= t.sy && y <= t.sy + t.sh) {
+      x = t.dX + (x - t.sx) * t.sX;
+      y = t.dY + (y - t.sy) * t.sY;
+    }
+    return { x, y };
+  };
+
+  const mapDotsThroughRestore = centers => {
+    if (!centers) return centers;
+    const t = getRestoreTransform();
+    if (!t) return centers;
+    const keys = Object.keys(centers);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const mapped = mapPointThroughRestore(centers[k], t);
+      centers[k].x = mapped.x;
+      centers[k].y = mapped.y;
+    }
+    return centers;
+  };
+
+  const mapLineEdgesThroughRestore = edges => {
+    if (!edges) return edges;
+    const t = getRestoreTransform();
+    if (!t) return edges;
+    const keys = Object.keys(edges);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const e = edges[k];
+      const ox = e.x;
+      const oy = e.y;
+      const mappedCenter = mapPointThroughRestore({ x: ox, y: oy }, t);
+      e.x = mappedCenter.x;
+      e.y = mappedCenter.y;
+      if (e.topY !== null) {
+        const mappedTop = mapPointThroughRestore({ x: ox, y: e.topY }, t);
+        e.topY = mappedTop.y;
+      }
+      if (e.bottomY !== null) {
+        const mappedBottom = mapPointThroughRestore({ x: ox, y: e.bottomY }, t);
+        e.bottomY = mappedBottom.y;
+      }
+    }
+    return edges;
+  };
+
+  const A4_BLUE_DOTS = [
+    { x: 10.125, y: 27.75 },
+    { x: 10.375, y: 27.75 },
+    { x: 10.625, y: 27.75 },
+    { x: 10.875, y: 27.75 }
+  ];
+  const DOT_ORDER = ["red", "black", "blue", "green"];
+
+  const buildRemeshControls = centers => {
+    if (!centers || !ALG || !ALG.CFG) return null;
+    const PX_CM = ALG.CFG.PX_CM;
+    if (!PX_CM) return null;
+    const controls = [];
+    for (let i = 0; i < DOT_ORDER.length; i++) {
+      const key = DOT_ORDER[i];
+      const src = centers[key];
+      const tgtCm = A4_BLUE_DOTS[i];
+      if (!src || !tgtCm) return null;
+      controls.push({
+        target: { x: tgtCm.x * PX_CM, y: tgtCm.y * PX_CM },
+        source: { x: src.x, y: src.y }
+      });
+    }
+    return controls;
+  };
+
+  const remeshDotData = (centers, edges, controls) => {
+    if (!centers || !controls || typeof SP.remeshPoints !== "function") return;
+    const keys = Object.keys(centers);
+    if (!keys.length) return;
+    const srcPts = keys.map(k => ({ x: centers[k].x, y: centers[k].y }));
+    const mapped = SP.remeshPoints(srcPts, controls);
+    for (let i = 0; i < keys.length; i++) {
+      if (!mapped[i]) continue;
+      centers[keys[i]].x = mapped[i].x;
+      centers[keys[i]].y = mapped[i].y;
     }
 
-    if (target.canvas === E.stencil) {
-      E.stencil.width = w;
-      E.stencil.height = h;
+    if (!edges) return;
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      const e = edges[k];
+      if (!e || !centers[k]) continue;
+      const pts = [];
+      const idxTop = e.topY !== null ? pts.push({ x: e.x, y: e.topY }) - 1 : -1;
+      const idxBottom = e.bottomY !== null ? pts.push({ x: e.x, y: e.bottomY }) - 1 : -1;
+      if (pts.length) {
+        const mappedPts = SP.remeshPoints(pts, controls);
+        if (idxTop >= 0 && mappedPts[idxTop]) e.topY = mappedPts[idxTop].y;
+        if (idxBottom >= 0 && mappedPts[idxBottom]) e.bottomY = mappedPts[idxBottom].y;
+      }
+      e.x = centers[k].x;
+      e.y = centers[k].y;
+    }
+  };
+
+  const drawDotOverlay = (cvs, centers, edges, includeA4Blue = false, includeGrid = false) => {
+    if (!cvs) return null;
+    const dotKeys = centers ? Object.keys(centers) : [];
+    const edgeKeys = edges ? Object.keys(edges) : [];
+    const a4cm = ALG && ALG.CFG && ALG.CFG.A4_CM ? ALG.CFG.A4_CM : null;
+    const canDrawBlue = includeA4Blue && a4cm;
+    const canDrawGrid = includeGrid && a4cm;
+    if (!dotKeys.length && !edgeKeys.length && !canDrawBlue && !canDrawGrid) return null;
+    const out = document.createElement("canvas");
+    out.width = cvs.width;
+    out.height = cvs.height;
+    const outCtx = out.getContext("2d", { willReadFrequently: true });
+    outCtx.drawImage(cvs, 0, 0);
+
+    const TWO_PI = Math.PI * 2;
+    const baseRadius = Math.max(3, Math.round(out.width / 400));
+    if (canDrawBlue) {
+      const scaleX = out.width / a4cm[0];
+      const scaleY = out.height / a4cm[1];
+      outCtx.fillStyle = "#2563eb";
+      for (let i = 0; i < A4_BLUE_DOTS.length; i++) {
+        const p = A4_BLUE_DOTS[i];
+        outCtx.beginPath();
+        outCtx.arc(p.x * scaleX, p.y * scaleY, baseRadius, 0, TWO_PI);
+        outCtx.fill();
+      }
     }
 
-    target.clearRect(0, 0, w, h);
-    _overlay(target, w, h);
-  }
+    if (edges && edgeKeys.length) {
+      outCtx.strokeStyle = "#9ca3af";
+      outCtx.lineWidth = 7;
+      for (let i = 0; i < edgeKeys.length; i++) {
+        const e = edges[edgeKeys[i]];
+        if (e.topY !== null) {
+          outCtx.beginPath();
+          outCtx.moveTo(e.x, e.y);
+          outCtx.lineTo(e.x, e.topY);
+          outCtx.stroke();
+        }
+        if (e.bottomY !== null) {
+          outCtx.beginPath();
+          outCtx.moveTo(e.x, e.y);
+          outCtx.lineTo(e.x, e.bottomY);
+          outCtx.stroke();
+        }
+      }
+    }
+
+    outCtx.fillStyle = "#ff4fb8";
+    for (let i = 0; i < dotKeys.length; i++) {
+      const p = centers[dotKeys[i]];
+      outCtx.beginPath();
+      outCtx.arc(p.x, p.y, baseRadius, 0, TWO_PI);
+      outCtx.fill();
+    }
+
+    if (canDrawGrid) {
+      const stepX = (out.width / a4cm[0]) * 0.5;
+      const stepY = (out.height / a4cm[1]) * 0.5;
+      outCtx.save();
+      outCtx.strokeStyle = "rgba(0,0,0,0.25)";
+      outCtx.lineWidth = 1;
+
+      for (let x = 0; x <= out.width + 0.1; x += stepX) {
+        const px = Math.round(x) + 0.5;
+        outCtx.beginPath();
+        outCtx.moveTo(px, 0);
+        outCtx.lineTo(px, out.height);
+        outCtx.stroke();
+      }
+
+      for (let y = 0; y <= out.height + 0.1; y += stepY) {
+        const py = Math.round(y) + 0.5;
+        outCtx.beginPath();
+        outCtx.moveTo(0, py);
+        outCtx.lineTo(out.width, py);
+        outCtx.stroke();
+      }
+      outCtx.restore();
+    }
+    return out;
+  };
+
+  const drawWarpGridOverlay = (cvs, controls) => {
+    if (!cvs || !controls || typeof SP.remeshStencilOverlay !== "function" || !ALG || !ALG.CFG) return null;
+    const PX_CM = ALG.CFG.PX_CM;
+    if (!PX_CM) return null;
+
+    const grid = document.createElement("canvas");
+    grid.width = cvs.width;
+    grid.height = cvs.height;
+    const gctx = grid.getContext("2d", { willReadFrequently: true });
+    gctx.clearRect(0, 0, grid.width, grid.height);
+
+    const sx = ALG.CFG.STENCIL.x * PX_CM;
+    const sy = ALG.CFG.STENCIL.y * PX_CM;
+    const sw = (ALG.CFG.STENCIL.w * PX_CM + 0.5) | 0;
+    const sh = (ALG.CFG.STENCIL.h * PX_CM + 0.5) | 0;
+
+    const step = PX_CM; // 1cm grid
+    gctx.strokeStyle = "rgba(0,120,255,0.55)";
+    gctx.lineWidth = Math.max(1, Math.round(cvs.width / 900));
+
+    for (let x = sx; x <= sx + sw + 0.1; x += step) {
+      const px = Math.round(x) + 0.5;
+      gctx.beginPath();
+      gctx.moveTo(px, sy);
+      gctx.lineTo(px, sy + sh);
+      gctx.stroke();
+    }
+
+    for (let y = sy; y <= sy + sh + 0.1; y += step) {
+      const py = Math.round(y) + 0.5;
+      gctx.beginPath();
+      gctx.moveTo(sx, py);
+      gctx.lineTo(sx + sw, py);
+      gctx.stroke();
+    }
+
+    const warped = SP.remeshStencilOverlay(grid, controls);
+    if (!warped) return null;
+
+    const out = document.createElement("canvas");
+    out.width = cvs.width;
+    out.height = cvs.height;
+    const octx = out.getContext("2d", { willReadFrequently: true });
+    octx.drawImage(cvs, 0, 0);
+    octx.drawImage(warped, 0, 0);
+    return out;
+  };
 
   function fitToSize(sw, sh) {
     if (!sw || !sh) return;
@@ -1205,20 +1666,18 @@
     if (!sw || !sh) return;
     fitToSize(sw, sh);
 
-    if (S.crop) {
-      if (!p.src) {
-        ensureSrcCanvas(p).then(() => {
-          if (S.crop && S.pages[S.i] === p) fit();
-        });
-        return;
+      if (S.crop) {
+        if (!p.src) {
+          ensureSrcCanvas(p).then(() => {
+            if (S.crop && S.pages[S.i] === p) fit();
+          });
+          return;
+        }
+        drawCrop();
       }
-      drawCrop();
-    } else {
-      drawOverlay(stx, sw, sh);
-    }
 
-    resetZ();
-  }
+      resetZ();
+    }
 
   function syncFinalView() {
     if (S.i < 0 || S.crop) return;
@@ -1228,23 +1687,24 @@
     E.empty.style.display = "none";
     E.img.classList.remove("preview-pending");
     E.img.onload = null;
-    if (p.displayUrl) {
-      E.img.src = p.displayUrl;
-      E.img.style.display = "block";
-    } else {
-      E.img.style.display = "none";
-    }
-    E.crop.style.display = "none";
-    const ready = !p.status || p.status === "done";
-    $("cropBtn").disabled = !ready;
-    $("stencilBtn").disabled = !ready;
-    $("stencilBtn").classList.toggle("active", !!S.stencil);
-    E.stencil.style.display = S.stencil ? "block" : "none";
-    const size = getProcessedSize(p);
-    if (size.w && size.h) drawOverlay(stx, size.w, size.h);
-    fit();
-    stageOffImmediate();
-    releaseStageUrl(p, true);
+      if (p.displayUrl) {
+        E.img.src = p.displayUrl;
+        E.img.style.display = "block";
+      } else {
+        E.img.style.display = "none";
+      }
+      E.crop.style.display = "none";
+      const ready = !p.status || p.status === "done";
+      $("cropBtn").disabled = !ready;
+      $("stencilBtn").disabled = !ready;
+      $("stencilBtn").classList.toggle("active", !!S.stencil);
+      E.stencil.style.display = "none";
+      if (S.stencil && ready) {
+        applyStencilPreview(p);
+      }
+      fit();
+      stageOffImmediate();
+      releaseStageUrl(p, true);
     if (MEM.low && !S.crop) dropCanvasesIfLowMem(p);
   }
 
@@ -1303,19 +1763,20 @@
       return;
     }
 
-    E.img.classList.remove("preview-pending");
-    if (p.displayUrl) {
-      E.img.src = p.displayUrl;
-      E.img.style.display = "block";
-    } else {
-      E.img.style.display = "none";
-    }
+      E.img.classList.remove("preview-pending");
+      if (p.displayUrl) {
+        E.img.src = p.displayUrl;
+        E.img.style.display = "block";
+      } else {
+        E.img.style.display = "none";
+      }
 
-    E.stencil.style.display = S.stencil ? "block" : "none";
-    const size = getProcessedSize(p);
-    if (size.w && size.h) drawOverlay(stx, size.w, size.h);
-    fit();
-    stageOffImmediate();
+      E.stencil.style.display = "none";
+      if (S.stencil) {
+        applyStencilPreview(p);
+      }
+      fit();
+      stageOffImmediate();
     trimCanvasCache(p.id);
     if (MEM.low && !S.crop) dropCanvasesIfLowMem(p);
     if (prev && prev.status === "done") releaseStageUrl(prev, true);
@@ -1378,9 +1839,11 @@
           toURL(processed, "image/jpeg", 0.92),
           toURL(thumbCanvas, "image/jpeg", 0.85)
         ]);
-        releaseCanvas(thumbCanvas);
+          releaseCanvas(thumbCanvas);
 
-        setPageUrls(p, displayUrl, thumbUrl);
+          releaseStencilUrl(p);
+          releaseStencilCache(p.id);
+          setPageUrls(p, displayUrl, thumbUrl);
         p.processed = processed;
         p.processedW = processed.width;
         p.processedH = processed.height;
@@ -1410,8 +1873,13 @@
     }
     S.stencil = !S.stencil;
     $("stencilBtn").classList.toggle("active", !!S.stencil);
-    const size = getProcessedSize(S.pages[S.i]);
-    if (size.w && size.h) drawOverlay(stx, size.w, size.h);
+    E.stencil.style.display = "none";
+    if (S.stencil) {
+      applyStencilPreview(p);
+    } else if (p.displayUrl) {
+      E.img.src = p.displayUrl;
+      E.img.style.display = "block";
+    }
   }
 
   async function autoCrop() {
@@ -1650,7 +2118,7 @@
       const ok = await drawPageImage(p);
       if (!ok) continue;
 
-      if (S.stencil || p.marker) drawOverlay(tctx, t.width, t.height, 1);
+        if (S.stencil) await applyStencilToContext(tctx, t.width, t.height, t);
 
       const r = Math.min(pdfW / t.width, pdfH / t.height);
       const w = t.width * r;
@@ -1675,25 +2143,26 @@
       const file = files[fi];
       if (!isImageFile(file)) continue;
 
-      const page = {
-        id: Date.now() + Math.random(),
-        file,
-        name: file.name,
-        status: "queued",
-        previewUrl: URL.createObjectURL(file),
+        const page = {
+          id: Date.now() + Math.random(),
+          file,
+          name: file.name,
+          status: "queued",
+          previewUrl: URL.createObjectURL(file),
         decodePromise: null,
         src: null,
         srcW: 0,
         srcH: 0,
         previewW: 0,
-        previewH: 0,
-        stageUrl: null,
-        stageLabel: "",
-        stageW: 0,
-        stageH: 0,
-        processed: null,
-        processedW: 0,
-        processedH: 0,
+          previewH: 0,
+          stageUrl: null,
+          stageLabel: "",
+          stageW: 0,
+          stageH: 0,
+          stencilUrl: null,
+          processed: null,
+          processedW: 0,
+          processedH: 0,
         displayUrl: null,
         thumbUrl: null,
         quad: null,

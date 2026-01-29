@@ -1273,4 +1273,577 @@
       m.d();
     }
   };
+
+  SP.removeEdgeYellowZones = function removeEdgeYellowZones(cvs) {
+    if (!cvs || !SP.Config) return cvs;
+    const target = SP.Config.TARGET_YELLOW;
+    if (!target) return cvs;
+
+    const w = cvs.width;
+    const h = cvs.height;
+    if (w < 2 || h < 2) return cvs;
+
+    const PX_CM = (SP.Dims && SP.Dims.PX_PER_CM) || (SP.ALG && SP.ALG.CFG && SP.ALG.CFG.PX_CM) || 0;
+    const marginPx = Math.min(Math.floor(Math.min(w, h) * 0.5), Math.max(1, (2.5 * PX_CM + 0.5) | 0));
+    if (!marginPx) return cvs;
+    const nearPx = Math.max(1, (0.5 * PX_CM + 0.5) | 0);
+
+    const ctx = cvs.getContext("2d", { willReadFrequently: true });
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    const total = w * h;
+    const visited = new Uint8Array(total);
+    const removed = new Uint8Array(total);
+
+    const tR = target.R | 0;
+    const tG = target.G | 0;
+    const tB = target.B | 0;
+    const tol = 18;
+    const tol2 = tol * tol;
+    const isYellow = p => {
+      const idx = p * 4;
+      const dr = d[idx] - tR;
+      const dg = d[idx + 1] - tG;
+      const db = d[idx + 2] - tB;
+      return dr * dr + dg * dg + db * db <= tol2;
+    };
+    const nearTol = 45;
+    const nearTol2 = nearTol * nearTol;
+    const isNearYellow = p => {
+      const idx = p * 4;
+      const dr = d[idx] - tR;
+      const dg = d[idx + 1] - tG;
+      const db = d[idx + 2] - tB;
+      return dr * dr + dg * dg + db * db <= nearTol2;
+    };
+
+    const wMinus1 = w - 1;
+    const hMinus1 = h - 1;
+    const queue = [];
+
+    const trySeed = (x, y) => {
+      const p = y * w + x;
+      if (visited[p]) return;
+      if (!isYellow(p)) return;
+
+      queue.length = 0;
+      let head = 0;
+      visited[p] = 1;
+      queue.push(p);
+
+      let touchesInterior = false;
+      for (; head < queue.length; head++) {
+        const cur = queue[head];
+        const cy = (cur / w) | 0;
+        const cx = cur - cy * w;
+
+        if (!touchesInterior &&
+            cx >= marginPx && cx < w - marginPx &&
+            cy >= marginPx && cy < h - marginPx) {
+          touchesInterior = true;
+        }
+
+        if (cx > 0) {
+          const n = cur - 1;
+          if (!visited[n] && isYellow(n)) { visited[n] = 1; queue.push(n); }
+        }
+        if (cx < wMinus1) {
+          const n = cur + 1;
+          if (!visited[n] && isYellow(n)) { visited[n] = 1; queue.push(n); }
+        }
+        if (cy > 0) {
+          const n = cur - w;
+          if (!visited[n] && isYellow(n)) { visited[n] = 1; queue.push(n); }
+        }
+        if (cy < hMinus1) {
+          const n = cur + w;
+          if (!visited[n] && isYellow(n)) { visited[n] = 1; queue.push(n); }
+        }
+      }
+
+      if (!touchesInterior && queue.length >= 50) {
+        for (let i = 0; i < queue.length; i++) {
+          const pi = queue[i];
+          removed[pi] = 1;
+          const idx = pi * 4;
+          d[idx] = 255;
+          d[idx + 1] = 255;
+          d[idx + 2] = 255;
+          d[idx + 3] = 255;
+        }
+      }
+    };
+
+    for (let y = 0; y < h; y++) {
+      const isMarginRow = y < marginPx || y >= h - marginPx;
+      if (isMarginRow) {
+        for (let x = 0; x < w; x++) {
+          trySeed(x, y);
+        }
+      } else {
+        for (let x = 0; x < marginPx; x++) {
+          trySeed(x, y);
+        }
+        for (let x = w - marginPx; x < w; x++) {
+          trySeed(x, y);
+        }
+      }
+    }
+
+    if (nearPx > 0) {
+      const visitedNear = new Uint8Array(total);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const p = y * w + x;
+          if (visitedNear[p] || !isNearYellow(p) || removed[p]) continue;
+
+          queue.length = 0;
+          let head = 0;
+          visitedNear[p] = 1;
+          queue.push(p);
+
+          let minX = x, maxX = x, minY = y, maxY = y;
+          for (; head < queue.length; head++) {
+            const cur = queue[head];
+            const cy = (cur / w) | 0;
+            const cx = cur - cy * w;
+
+            if (cx < minX) minX = cx;
+            if (cx > maxX) maxX = cx;
+            if (cy < minY) minY = cy;
+            if (cy > maxY) maxY = cy;
+
+            if (cx > 0) {
+              const n = cur - 1;
+              if (!visitedNear[n] && !removed[n] && isNearYellow(n)) { visitedNear[n] = 1; queue.push(n); }
+            }
+            if (cx < wMinus1) {
+              const n = cur + 1;
+              if (!visitedNear[n] && !removed[n] && isNearYellow(n)) { visitedNear[n] = 1; queue.push(n); }
+            }
+            if (cy > 0) {
+              const n = cur - w;
+              if (!visitedNear[n] && !removed[n] && isNearYellow(n)) { visitedNear[n] = 1; queue.push(n); }
+            }
+            if (cy < hMinus1) {
+              const n = cur + w;
+              if (!visitedNear[n] && !removed[n] && isNearYellow(n)) { visitedNear[n] = 1; queue.push(n); }
+            }
+          }
+
+          const checkMinX = Math.max(0, minX - nearPx);
+          const checkMaxX = Math.min(wMinus1, maxX + nearPx);
+          const checkMinY = Math.max(0, minY - nearPx);
+          const checkMaxY = Math.min(hMinus1, maxY + nearPx);
+          let closeToRemoved = false;
+          for (let yy = checkMinY; yy <= checkMaxY && !closeToRemoved; yy++) {
+            const rowBase = yy * w;
+            for (let xx = checkMinX; xx <= checkMaxX; xx++) {
+              if (removed[rowBase + xx]) { closeToRemoved = true; break; }
+            }
+          }
+
+          if (closeToRemoved) {
+            for (let i = 0; i < queue.length; i++) {
+              const pi = queue[i];
+              removed[pi] = 1;
+              const idx = pi * 4;
+              d[idx] = 255;
+              d[idx + 1] = 255;
+              d[idx + 2] = 255;
+              d[idx + 3] = 255;
+            }
+          }
+        }
+      }
+    }
+
+    let removedCount = 0;
+    for (let i = 0; i < total; i++) {
+      if (removed[i]) removedCount++;
+    }
+    if (removedCount) {
+      const pad = 4;
+      const pad2 = pad * pad;
+      const dilated = new Uint8Array(total);
+      for (let p = 0; p < total; p++) {
+        if (!removed[p]) continue;
+        const y = (p / w) | 0;
+        const x = p - y * w;
+        const y0 = Math.max(0, y - pad);
+        const y1 = Math.min(hMinus1, y + pad);
+        const x0 = Math.max(0, x - pad);
+        const x1 = Math.min(wMinus1, x + pad);
+        for (let yy = y0; yy <= y1; yy++) {
+          const dy = yy - y;
+          const row = yy * w;
+          for (let xx = x0; xx <= x1; xx++) {
+            const dx = xx - x;
+            if (dx * dx + dy * dy > pad2) continue;
+            dilated[row + xx] = 1;
+          }
+        }
+      }
+      for (let p = 0; p < total; p++) {
+        if (!dilated[p]) continue;
+        const idx = p * 4;
+        d[idx] = 255;
+        d[idx + 1] = 255;
+        d[idx + 2] = 255;
+        d[idx + 3] = 255;
+      }
+    }
+
+    ctx.putImageData(id, 0, 0);
+    return cvs;
+  };
+
+  SP.removeDotGrid = function removeDotGrid(cvs) {
+    if (!cvs) return cvs;
+    const PX_CM = (SP.Dims && SP.Dims.PX_PER_CM) || (SP.ALG && SP.ALG.CFG && SP.ALG.CFG.PX_CM) || 0;
+    if (!PX_CM) return cvs;
+
+    const w = cvs.width;
+    const h = cvs.height;
+    if (w < 2 || h < 2) return cvs;
+
+    const ctx = cvs.getContext("2d", { willReadFrequently: true });
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+
+    const whiteThresh = 153; // 60% of 255
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] >= whiteThresh && d[i + 1] >= whiteThresh && d[i + 2] >= whiteThresh) {
+        d[i] = 255;
+        d[i + 1] = 255;
+        d[i + 2] = 255;
+        d[i + 3] = 255;
+      }
+    }
+
+    const startX = 2.0 * PX_CM;
+    const startY = 1.93 * PX_CM;
+    const endX = 19.0 * PX_CM;
+    const endY = 26.93 * PX_CM;
+    const step = 0.5 * PX_CM;
+    if (step < 2) return cvs;
+
+    const blobR = Math.max(1, (0.1 * PX_CM + 0.5) | 0);
+    const minSize = Math.max(4, (Math.PI * blobR * blobR * 0.35) | 0);
+    const maxDim = Math.max(8, (0.4 * PX_CM + 0.5) | 0);
+    const maxSize = Math.max(minSize + 8, (Math.PI * blobR * blobR * 10) | 0);
+    const isoPad = Math.max(5, (0.2 * PX_CM + 0.5) | 0);
+    const xTol = Math.max(4, (0.35 * PX_CM + 0.5) | 0);
+
+    const visited = new Uint8Array(w * h);
+
+    const lumaMin = 25;
+    const lumaMax = 200;
+    const chromaMax = 70;
+    const ringLumaMin = 150;
+
+    const isDotPx = p => {
+      const idx = p * 4;
+      const r = d[idx];
+      const g = d[idx + 1];
+      const b = d[idx + 2];
+      const max = r > g ? (r > b ? r : b) : (g > b ? g : b);
+      const min = r < g ? (r < b ? r : b) : (g < b ? g : b);
+      const chroma = max - min;
+      const luma = r * 0.299 + g * 0.587 + b * 0.114;
+      return luma >= lumaMin && luma <= lumaMax && chroma <= chromaMax;
+    };
+
+    const yMin = Math.max(0, Math.round(startY));
+    const yMax = Math.min(h - 1, Math.round(endY));
+    const wMinus1 = w - 1;
+    const hMinus1 = h - 1;
+    const queue = [];
+    const indices = [];
+
+    const nearestColumn = x => {
+      const t = (x - startX) / step;
+      const idx = Math.round(t);
+      const cx = startX + idx * step;
+      return { cx, dist: Math.abs(x - cx) };
+    };
+
+      for (let y = yMin; y <= yMax; y++) {
+        const row = y * w;
+        for (let x = 0; x < w; x++) {
+        const p = row + x;
+        if (visited[p] || !isDotPx(p)) continue;
+        const col = nearestColumn(x);
+        if (col.dist > xTol) { visited[p] = 1; continue; }
+
+        queue.length = 0;
+        indices.length = 0;
+        visited[p] = 1;
+        queue.push(p);
+
+        let head = 0;
+        let count = 0;
+        let sumX = 0;
+        let sumY = 0;
+        let minX = x, maxX = x, minY2 = y, maxY2 = y;
+
+        for (; head < queue.length; head++) {
+          const cur = queue[head];
+          const cy = (cur / w) | 0;
+          const cx = cur - cy * w;
+          indices.push(cur);
+          count++;
+          sumX += cx;
+          sumY += cy;
+          if (cx < minX) minX = cx;
+          if (cx > maxX) maxX = cx;
+          if (cy < minY2) minY2 = cy;
+          if (cy > maxY2) maxY2 = cy;
+
+          if (cx > 0) {
+            const n = cur - 1;
+            if (!visited[n] && isDotPx(n)) { visited[n] = 1; queue.push(n); }
+          }
+          if (cx < wMinus1) {
+            const n = cur + 1;
+            if (!visited[n] && isDotPx(n)) { visited[n] = 1; queue.push(n); }
+          }
+          if (cy > yMin) {
+            const n = cur - w;
+            if (!visited[n] && isDotPx(n)) { visited[n] = 1; queue.push(n); }
+          }
+          if (cy < yMax) {
+            const n = cur + w;
+            if (!visited[n] && isDotPx(n)) { visited[n] = 1; queue.push(n); }
+          }
+        }
+
+        if (count < minSize || count > maxSize) continue;
+        if ((maxX - minX + 1) > maxDim || (maxY2 - minY2 + 1) > maxDim) continue;
+
+        const centerX = sumX / count;
+        const centerY = sumY / count;
+        const col2 = nearestColumn(centerX);
+        if (col2.dist > xTol) continue;
+
+        const ringMinX = Math.max(0, minX - isoPad);
+        const ringMaxX = Math.min(wMinus1, maxX + isoPad);
+        const ringMinY = Math.max(0, minY2 - isoPad);
+        const ringMaxY = Math.min(hMinus1, maxY2 + isoPad);
+        let ringSum = 0;
+        let ringCount = 0;
+        const blobSet = new Set(indices);
+        for (let yy = ringMinY; yy <= ringMaxY; yy++) {
+          const rowBase = yy * w;
+          for (let xx = ringMinX; xx <= ringMaxX; xx++) {
+            const q = rowBase + xx;
+            if (q >= 0 && q < visited.length) {
+              const idx = q * 4;
+              const r = d[idx];
+              const g = d[idx + 1];
+              const b = d[idx + 2];
+              const max = r > g ? (r > b ? r : b) : (g > b ? g : b);
+              const min = r < g ? (r < b ? r : b) : (g < b ? g : b);
+              const chroma = max - min;
+              const luma = r * 0.299 + g * 0.587 + b * 0.114;
+              ringSum += luma;
+              ringCount++;
+            }
+          }
+        }
+        if (ringCount && ringSum / ringCount < ringLumaMin) continue;
+
+          // Remove only blob pixels (avoid large white circles)
+            for (let i = 0; i < indices.length; i++) {
+              const idx = indices[i] * 4;
+              d[idx] = 255;
+              d[idx + 1] = 255;
+              d[idx + 2] = 255;
+              d[idx + 3] = 255;
+            }
+        }
+      }
+
+      // Second pass: remove small grey speckles anywhere (not just on columns),
+      // but protect areas near ink to avoid thinning text.
+      const speckMinLuma = 45;
+      const speckMaxLuma = 235;
+      const speckChromaMax = 120;
+      const speckMeanMin = 85;
+      const speckMaxDim = Math.max(9, (0.22 * PX_CM + 0.5) | 0);
+      const speckMaxSize = Math.max(18, (speckMaxDim * speckMaxDim * 0.9) | 0);
+      const speckVisited = new Uint8Array(w * h);
+      const speckQueue = [];
+      const speckIdx = [];
+
+      const contentThresh = 140;
+      const pad = 5;
+      const content = new Uint8Array(w * h);
+      for (let p = 0; p < content.length; p++) {
+        const idx = p * 4;
+        const r = d[idx];
+        const g = d[idx + 1];
+        const b = d[idx + 2];
+        const luma = r * 0.299 + g * 0.587 + b * 0.114;
+        if (luma < contentThresh) content[p] = 1;
+      }
+
+      // Build a protection mask only around larger ink components.
+      const largeMinSize = Math.max(30, Math.pow((0.08 * PX_CM + 0.5) | 0, 2));
+      const contentVisited = new Uint8Array(w * h);
+      const largeInk = new Uint8Array(w * h);
+      const compQueue = [];
+      const compIdx = [];
+      for (let p = 0; p < content.length; p++) {
+        if (!content[p] || contentVisited[p]) continue;
+        compQueue.length = 0;
+        compIdx.length = 0;
+        contentVisited[p] = 1;
+        compQueue.push(p);
+        let head = 0;
+        for (; head < compQueue.length; head++) {
+          const cur = compQueue[head];
+          compIdx.push(cur);
+          const cy = (cur / w) | 0;
+          const cx = cur - cy * w;
+          if (cx > 0) {
+            const n = cur - 1;
+            if (!contentVisited[n] && content[n]) { contentVisited[n] = 1; compQueue.push(n); }
+          }
+          if (cx < wMinus1) {
+            const n = cur + 1;
+            if (!contentVisited[n] && content[n]) { contentVisited[n] = 1; compQueue.push(n); }
+          }
+          if (cy > 0) {
+            const n = cur - w;
+            if (!contentVisited[n] && content[n]) { contentVisited[n] = 1; compQueue.push(n); }
+          }
+          if (cy < hMinus1) {
+            const n = cur + w;
+            if (!contentVisited[n] && content[n]) { contentVisited[n] = 1; compQueue.push(n); }
+          }
+        }
+        if (compIdx.length >= largeMinSize) {
+          for (let i = 0; i < compIdx.length; i++) largeInk[compIdx[i]] = 1;
+        }
+      }
+
+      // Dilate large-ink mask with a square window (separable for speed).
+      const tmpMask = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++) {
+        const rowBase = y * w;
+        let count = 0;
+        const xInitEnd = Math.min(wMinus1, pad);
+        for (let x = 0; x <= xInitEnd; x++) count += largeInk[rowBase + x];
+        for (let x = 0; x < w; x++) {
+          const idx = rowBase + x;
+          if (count > 0) tmpMask[idx] = 1;
+          const outX = x - pad;
+          const inX = x + pad + 1;
+          if (outX >= 0) count -= largeInk[rowBase + outX];
+          if (inX < w) count += largeInk[rowBase + inX];
+        }
+      }
+
+      const inkProtect = new Uint8Array(w * h);
+      for (let x = 0; x < w; x++) {
+        let count = 0;
+        const yInitEnd = Math.min(hMinus1, pad);
+        for (let y = 0; y <= yInitEnd; y++) count += tmpMask[y * w + x];
+        for (let y = 0; y < h; y++) {
+          const idx = y * w + x;
+          if (count > 0) inkProtect[idx] = 1;
+          const outY = y - pad;
+          const inY = y + pad + 1;
+          if (outY >= 0) count -= tmpMask[outY * w + x];
+          if (inY < h) count += tmpMask[inY * w + x];
+        }
+      }
+
+      const isSpeck = p => {
+        const idx = p * 4;
+        const r = d[idx];
+        const g = d[idx + 1];
+        const b = d[idx + 2];
+        const max = r > g ? (r > b ? r : b) : (g > b ? g : b);
+        const min = r < g ? (r < b ? r : b) : (g < b ? g : b);
+        const chroma = max - min;
+        const luma = r * 0.299 + g * 0.587 + b * 0.114;
+        return luma >= speckMinLuma && luma <= speckMaxLuma && chroma <= speckChromaMax;
+      };
+
+      for (let y = 0; y < h; y++) {
+        const row = y * w;
+        for (let x = 0; x < w; x++) {
+          const p = row + x;
+          if (speckVisited[p] || !isSpeck(p)) continue;
+
+          speckQueue.length = 0;
+          speckIdx.length = 0;
+          speckVisited[p] = 1;
+          speckQueue.push(p);
+
+          let head = 0;
+          let count = 0;
+          let sumL = 0;
+          let minX = x, maxX = x, minY2 = y, maxY2 = y;
+
+          for (; head < speckQueue.length; head++) {
+            const cur = speckQueue[head];
+            const cy = (cur / w) | 0;
+            const cx = cur - cy * w;
+            speckIdx.push(cur);
+            count++;
+            const idx = cur * 4;
+            const r = d[idx];
+            const g = d[idx + 1];
+            const b = d[idx + 2];
+            sumL += r * 0.299 + g * 0.587 + b * 0.114;
+            if (cx < minX) minX = cx;
+            if (cx > maxX) maxX = cx;
+            if (cy < minY2) minY2 = cy;
+            if (cy > maxY2) maxY2 = cy;
+
+            if (cx > 0) {
+              const n = cur - 1;
+              if (!speckVisited[n] && isSpeck(n)) { speckVisited[n] = 1; speckQueue.push(n); }
+            }
+            if (cx < wMinus1) {
+              const n = cur + 1;
+              if (!speckVisited[n] && isSpeck(n)) { speckVisited[n] = 1; speckQueue.push(n); }
+            }
+            if (cy > 0) {
+              const n = cur - w;
+              if (!speckVisited[n] && isSpeck(n)) { speckVisited[n] = 1; speckQueue.push(n); }
+            }
+            if (cy < hMinus1) {
+              const n = cur + w;
+              if (!speckVisited[n] && isSpeck(n)) { speckVisited[n] = 1; speckQueue.push(n); }
+            }
+          }
+
+          if (count <= speckMaxSize &&
+              (maxX - minX + 1) <= speckMaxDim &&
+              (maxY2 - minY2 + 1) <= speckMaxDim &&
+              (sumL / count) >= speckMeanMin) {
+            let nearInk = false;
+            for (let i = 0; i < speckIdx.length; i++) {
+              if (inkProtect[speckIdx[i]]) { nearInk = true; break; }
+            }
+            if (!nearInk) {
+              for (let i = 0; i < speckIdx.length; i++) {
+                const idx = speckIdx[i] * 4;
+                d[idx] = 255;
+                d[idx + 1] = 255;
+                d[idx + 2] = 255;
+                d[idx + 3] = 255;
+              }
+            }
+          }
+        }
+      }
+
+      ctx.putImageData(id, 0, 0);
+      return cvs;
+    };
 })();

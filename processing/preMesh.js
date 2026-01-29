@@ -119,14 +119,7 @@
     return k;
   })();
 
-  SP.smoothResample = function smoothResample(pts, cnt) {
-    if (!pts || pts.length < 2) {
-      const fillPt = pts ? { ...pts[0] } : { x: 0, y: 0 };
-      const result = new Array(cnt);
-      for (let i = 0; i < cnt; i++) result[i] = { ...fillPt };
-      return result;
-    }
-
+  const smoothPoints = pts => {
     const ptsLen = pts.length;
     let sm = new Array(ptsLen);
     for (let i = 0; i < ptsLen; i++) {
@@ -154,6 +147,18 @@
       }
       sm = ns;
     }
+    return sm;
+  };
+
+  SP.smoothResample = function smoothResample(pts, cnt) {
+    if (!pts || pts.length < 2) {
+      const fillPt = pts ? { ...pts[0] } : { x: 0, y: 0 };
+      const result = new Array(cnt);
+      for (let i = 0; i < cnt; i++) result[i] = { ...fillPt };
+      return result;
+    }
+
+    const sm = smoothPoints(pts);
 
     const smLen = sm.length;
     const al = new Float32Array(smLen);
@@ -191,6 +196,101 @@
 
     rs[0] = { ...sm[0] };
     rs[cntMinus1] = { ...sm[smLenMinus1] };
+    return rs;
+  };
+
+  SP.axisResample = function axisResample(pts, cnt) {
+    if (!pts || pts.length < 2) {
+      const fillPt = pts ? { ...pts[0] } : { x: 0, y: 0 };
+      const result = new Array(cnt);
+      for (let i = 0; i < cnt; i++) result[i] = { ...fillPt };
+      return result;
+    }
+
+    const sm = smoothPoints(pts);
+    const smLen = sm.length;
+    const start = sm[0];
+    const end = sm[smLen - 1];
+    const vx = end.x - start.x;
+    const vy = end.y - start.y;
+    const len2 = vx * vx + vy * vy;
+    if (len2 < 1e-6) return SP.smoothResample(pts, cnt);
+
+    const tvals = new Float32Array(smLen);
+    tvals[0] = 0;
+    for (let i = 1; i < smLen; i++) {
+      const pt = sm[i];
+      let t = ((pt.x - start.x) * vx + (pt.y - start.y) * vy) / len2;
+      if (t < tvals[i - 1] + 1e-4) t = tvals[i - 1] + 1e-4;
+      tvals[i] = t;
+    }
+    const tLast = tvals[smLen - 1];
+    if (tLast <= 0) return SP.smoothResample(pts, cnt);
+    for (let i = 1; i < smLen; i++) tvals[i] /= tLast;
+
+    const rs = new Array(cnt);
+    const cntMinus1 = cnt - 1;
+    for (let i = 0; i < cnt; i++) {
+      const tgt = i / cntMinus1;
+      let lo = 0, hi = smLen - 1;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (tvals[mid] <= tgt) lo = mid; else hi = mid;
+      }
+      const t0 = tvals[lo];
+      const t1 = tvals[lo + 1];
+      const seg = t1 - t0;
+      const t = seg > 0 ? (tgt - t0) / seg : 0;
+      rs[i] = U.lerp(sm[lo], sm[lo + 1], t);
+    }
+    rs[0] = { ...sm[0] };
+    rs[cntMinus1] = { ...sm[smLen - 1] };
+    return rs;
+  };
+
+  SP.axisResampleY = function axisResampleY(pts, cnt) {
+    if (!pts || pts.length < 2) {
+      const fillPt = pts ? { ...pts[0] } : { x: 0, y: 0 };
+      const result = new Array(cnt);
+      for (let i = 0; i < cnt; i++) result[i] = { ...fillPt };
+      return result;
+    }
+
+    const sm = smoothPoints(pts);
+    const smLen = sm.length;
+    const startY = sm[0].y;
+    const endY = sm[smLen - 1].y;
+    const dy = endY - startY;
+    if (Math.abs(dy) < 1e-6) return SP.smoothResample(pts, cnt);
+
+    const tvals = new Float32Array(smLen);
+    tvals[0] = 0;
+    for (let i = 1; i < smLen; i++) {
+      let t = (sm[i].y - startY) / dy;
+      if (t < tvals[i - 1] + 1e-4) t = tvals[i - 1] + 1e-4;
+      tvals[i] = t;
+    }
+    const tLast = tvals[smLen - 1];
+    if (tLast <= 0) return SP.smoothResample(pts, cnt);
+    for (let i = 1; i < smLen; i++) tvals[i] /= tLast;
+
+    const rs = new Array(cnt);
+    const cntMinus1 = cnt - 1;
+    for (let i = 0; i < cnt; i++) {
+      const tgt = i / cntMinus1;
+      let lo = 0, hi = smLen - 1;
+      while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (tvals[mid] <= tgt) lo = mid; else hi = mid;
+      }
+      const t0 = tvals[lo];
+      const t1 = tvals[lo + 1];
+      const seg = t1 - t0;
+      const t = seg > 0 ? (tgt - t0) / seg : 0;
+      rs[i] = U.lerp(sm[lo], sm[lo + 1], t);
+    }
+    rs[0] = { ...sm[0] };
+    rs[cntMinus1] = { ...sm[smLen - 1] };
     return rs;
   };
 
